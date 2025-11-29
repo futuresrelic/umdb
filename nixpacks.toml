@@ -13,4 +13,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && npx prisma migrate deploy && npm start"
+cmd = "cd backend && npx prisma db push --accept-data-loss && npm start"
