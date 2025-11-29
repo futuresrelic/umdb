@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: umdb-postgres
+    environment:
+      POSTGRES_USER: umdb
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-umdb_password}
+      POSTGRES_DB: umdb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - umdb-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: umdb-backend
+    environment:
+      DATABASE_URL: postgresql://umdb:${DB_PASSWORD:-umdb_password}@postgres:5432/umdb?schema=public
+      PORT: 3001
+      NODE_ENV: production
+      TMDB_API_KEY: ${TMDB_API_KEY}
+      OMDB_API_KEY: ${OMDB_API_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - umdb-network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: umdb-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - umdb-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+
+networks:
+  umdb-network:
+    driver: bridge

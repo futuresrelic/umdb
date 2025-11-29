@@ -1,0 +1,186 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Movie is the core entity
+model Movie {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Basic info
+  title       String
+  originalTitle String?
+  year        Int?
+  runtime     Int?      // in minutes
+
+  // Content details
+  plot        String?   @db.Text
+  tagline     String?
+  language    String?   // Primary language
+  country     String?   // Country of origin
+
+  // Media details
+  posterUrl   String?
+  backdropUrl String?
+
+  // Source tracking
+  sourceType  SourceType @default(MANUAL)
+
+  // Physical media details (for manual entries)
+  physicalFormat String? // DVD, Blu-ray, VHS, CD, Vinyl, etc.
+  distributor    String?
+  upc            String? // Universal Product Code / Barcode
+  isbn           String? // For books (future expansion)
+  asin           String? // Amazon Standard Identification Number
+  notes          String? @db.Text
+
+  // Media type classification
+  mediaType      MediaType @default(MOVIE)
+
+  // Ratings
+  rating      Float?    // User/CMDB rating
+
+  // Relationships
+  externalMatches ExternalMatch[]
+  moviePeople     MoviePerson[]
+  movieGenres     MovieGenre[]
+
+  @@index([title])
+  @@index([year])
+  @@index([sourceType])
+}
+
+// External platform matches (TMDB, IMDB, etc.)
+model ExternalMatch {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  movieId     String
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  source      ExternalSource
+  externalId  String
+  url         String?
+
+  // Cached data from external source
+  rating      Float?
+  voteCount   Int?
+
+  @@unique([movieId, source])
+  @@index([externalId, source])
+}
+
+// People (actors, directors, etc.)
+model Person {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  birthDate   DateTime?
+  deathDate   DateTime?
+  biography   String?   @db.Text
+  photoUrl    String?
+
+  // External IDs
+  tmdbId      Int?      @unique
+  imdbId      String?   @unique
+
+  moviePeople MoviePerson[]
+
+  @@index([name])
+}
+
+// Junction table for Movie <-> Person with role
+model MoviePerson {
+  id          String   @id @default(cuid())
+
+  movieId     String
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  personId    String
+  person      Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  role        PersonRole
+  character   String?  // For actors
+  order       Int?     // For ordering (e.g., billing order)
+
+  @@unique([movieId, personId, role, character])
+  @@index([movieId])
+  @@index([personId])
+}
+
+// Genres
+model Genre {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  tmdbId      Int?     @unique
+
+  movieGenres MovieGenre[]
+}
+
+// Junction table for Movie <-> Genre
+model MovieGenre {
+  id          String   @id @default(cuid())
+
+  movieId     String
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  genreId     String
+  genre       Genre    @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, genreId])
+  @@index([movieId])
+  @@index([genreId])
+}
+
+// Enums
+enum SourceType {
+  MANUAL      // Entered by user from physical media
+  TMDB        // Imported from TMDB
+  IMDB        // Imported from IMDB
+  OMDB        // Imported from OMDB
+  AMAZON      // Imported from Amazon
+  HYBRID      // Mixed sources
+}
+
+enum ExternalSource {
+  TMDB
+  IMDB
+  AMAZON
+  MUSICBRAINZ  // For music/CDs
+  DISCOGS      // For vinyls/music
+  UMDB         // Self-reference for UMDB-exclusive entries
+}
+
+enum PersonRole {
+  DIRECTOR
+  ACTOR
+  WRITER
+  PRODUCER
+  CINEMATOGRAPHER
+  EDITOR
+  COMPOSER
+  ARTIST        // For music
+  MUSICIAN      // For music
+  BAND_MEMBER   // For music
+}
+
+enum MediaType {
+  MOVIE         // Films, movies
+  TV_SHOW       // TV series, episodes
+  MUSIC_ALBUM   // Music albums (CDs, digital)
+  VINYL         // Vinyl records
+  CD            // Audio CDs
+  BOOK          // Books (future)
+  GAME          // Video games (future)
+  OTHER         // Other media types
+}
