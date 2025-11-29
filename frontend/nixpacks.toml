@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "nginx"]
+
+[phases.install]
+cmds = [
+  "npm ci --include=dev"
+]
+
+[phases.build]
+cmds = [
+  "npm run build"
+]
+
+[start]
+cmd = "nginx -g 'daemon off;' -c /app/nginx-railway.conf"
