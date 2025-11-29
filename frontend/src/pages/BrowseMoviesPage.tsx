@@ -21,9 +21,10 @@ function BrowseMoviesPage() {
       if (sourceFilter) params.sourceType = sourceFilter;
 
       const data = await movieApi.getAll(params);
-      setMovies(data.movies);
+      setMovies(data?.movies || []);
     } catch (error) {
       console.error('Failed to load movies:', error);
+      setMovies([]);
     } finally {
       setLoading(false);
     }
