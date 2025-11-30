@@ -26,12 +26,25 @@ export interface Movie {
 export interface ExternalMatch {
   id: string;
   createdAt: string;
+  updatedAt: string;
   movieId: string;
-  source: 'TMDB' | 'IMDB';
+  source: 'TMDB' | 'IMDB' | 'OMDB' | 'AMAZON' | 'MUSICBRAINZ' | 'DISCOGS' | 'UMDB';
   externalId: string;
   url?: string;
+  title?: string;
+  originalTitle?: string;
+  year?: number;
+  runtime?: number;
+  plot?: string;
+  tagline?: string;
+  language?: string;
+  country?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
   rating?: number;
   voteCount?: number;
+  releaseDate?: string;
+  cachedData?: any;
 }
 
 export interface Person {

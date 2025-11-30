@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 
 function ImportCSVPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -24,7 +24,7 @@ function ImportCSVPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post('/api/csv/import', formData, {
+      const response = await api.post('/csv/import', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -44,7 +44,8 @@ function ImportCSVPage() {
   };
 
   const downloadTemplate = () => {
-    window.open('/api/csv/template', '_blank');
+    const apiBase = import.meta.env.VITE_API_URL || '/api';
+    window.open(`${apiBase}/csv/template`, '_blank');
   };
 
   return (

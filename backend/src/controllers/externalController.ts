@@ -2,7 +2,9 @@ import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import tmdbService from '../services/tmdbService';
 import omdbService from '../services/omdbService';
+import matchingService from '../services/matchingService';
 import prisma from '../utils/prisma';
+import { ExternalSource } from '@prisma/client';
 
 export const searchExternal = asyncHandler(async (req: Request, res: Response) => {
   const { query, year, source } = req.query;
@@ -308,4 +310,103 @@ export const importFromIMDB = asyncHandler(async (req: Request, res: Response) =
   });
 
   res.status(201).json(movie);
+});
+
+// Find matches across all sources for a movie
+export const findMatchesForMovie = asyncHandler(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+
+  // Get the movie
+  const movie = await prisma.movie.findUnique({
+    where: { id: movieId }
+  });
+
+  if (!movie) {
+    throw new AppError('Movie not found', 404);
+  }
+
+  // Find matches
+  const matches = await matchingService.findMatches(movie.title, movie.year || undefined);
+
+  res.json({
+    movieId,
+    title: movie.title,
+    year: movie.year,
+    matches
+  });
+});
+
+// Save a match to a movie
+export const saveMatchToMovie = asyncHandler(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+  const { source, externalId } = req.body;
+
+  if (!source || !externalId) {
+    throw new AppError('Source and external ID are required', 400);
+  }
+
+  // Validate source
+  if (!Object.values(ExternalSource).includes(source)) {
+    throw new AppError('Invalid source', 400);
+  }
+
+  // Check if movie exists
+  const movie = await prisma.movie.findUnique({
+    where: { id: movieId }
+  });
+
+  if (!movie) {
+    throw new AppError('Movie not found', 404);
+  }
+
+  // Save the match
+  await matchingService.saveMatch(movieId, source as ExternalSource, externalId);
+
+  // Return updated movie with all matches
+  const updatedMovie = await prisma.movie.findUnique({
+    where: { id: movieId },
+    include: {
+      externalMatches: true,
+      alternativeTitles: true
+    }
+  });
+
+  res.json(updatedMovie);
+});
+
+// Get all matches for a movie
+export const getMovieMatches = asyncHandler(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+
+  const matches = await matchingService.getMovieMatches(movieId);
+
+  res.json(matches);
+});
+
+// Get detailed data from a specific source
+export const getSourceDetails = asyncHandler(async (req: Request, res: Response) => {
+  const { source, externalId } = req.params;
+
+  // Validate source
+  if (!Object.values(ExternalSource).includes(source as ExternalSource)) {
+    throw new AppError('Invalid source', 400);
+  }
+
+  const details = await matchingService.getDetailedData(source as ExternalSource, externalId);
+
+  res.json(details);
+});
+
+// Remove a match from a movie
+export const removeMatchFromMovie = asyncHandler(async (req: Request, res: Response) => {
+  const { movieId, source } = req.params;
+
+  // Validate source
+  if (!Object.values(ExternalSource).includes(source as ExternalSource)) {
+    throw new AppError('Invalid source', 400);
+  }
+
+  await matchingService.removeMatch(movieId, source as ExternalSource);
+
+  res.json({ message: 'Match removed successfully' });
 });
