@@ -52,6 +52,8 @@ model Movie {
   externalMatches ExternalMatch[]
   moviePeople     MoviePerson[]
   movieGenres     MovieGenre[]
+  physicalCopies  PhysicalCopy[]
+  alternativeTitles AlternativeTitle[]
 
   @@index([title])
   @@index([year])
@@ -62,6 +64,7 @@ model Movie {
 model ExternalMatch {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   movieId     String
   movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
@@ -71,8 +74,28 @@ model ExternalMatch {
   url         String?
 
   // Cached data from external source
+  title       String?
+  originalTitle String?
+  year        Int?
+  runtime     Int?
+  plot        String?   @db.Text
+  tagline     String?
+  language    String?
+  country     String?
+
+  // Media
+  posterUrl   String?
+  backdropUrl String?
+
+  // Ratings
   rating      Float?
   voteCount   Int?
+
+  // Release info
+  releaseDate DateTime?
+
+  // Full JSON cache of source data
+  cachedData  Json?     @db.JsonB
 
   @@unique([movieId, source])
   @@index([externalId, source])
@@ -142,6 +165,55 @@ model MovieGenre {
   @@index([genreId])
 }
 
+// Physical media copies (DVD, Blu-ray, etc.)
+model PhysicalCopy {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  movieId     String
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  // Format details
+  format      PhysicalFormat
+  region      String?  // DVD region, Blu-ray region, etc.
+  edition     String?  // Collector's Edition, Director's Cut, etc.
+
+  // Distribution details
+  distributor String?
+  releaseDate DateTime?
+  upc         String?  // Universal Product Code / Barcode
+  ean         String?  // European Article Number
+  asin        String?  // Amazon Standard Identification Number
+
+  // Condition and ownership
+  condition   String?  // New, Like New, Good, Fair, etc.
+  location    String?  // Where it's stored
+  purchaseDate DateTime?
+  purchasePrice Float?
+  notes       String?  @db.Text
+
+  @@index([movieId])
+  @@index([format])
+}
+
+// Alternative titles for movies
+model AlternativeTitle {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  movieId     String
+  movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  title       String
+  country     String?  // Country where this title is used
+  type        String?  // Working title, Alternative title, etc.
+  source      ExternalSource?
+
+  @@index([movieId])
+  @@index([title])
+}
+
 // Enums
 enum SourceType {
   MANUAL      // Entered by user from physical media
@@ -155,6 +227,7 @@ enum SourceType {
 enum ExternalSource {
   TMDB
   IMDB
+  OMDB
   AMAZON
   MUSICBRAINZ  // For music/CDs
   DISCOGS      // For vinyls/music
@@ -183,4 +256,22 @@ enum MediaType {
   BOOK          // Books (future)
   GAME          // Video games (future)
   OTHER         // Other media types
+}
+
+enum PhysicalFormat {
+  DVD
+  BLU_RAY
+  BLU_RAY_4K
+  VHS
+  LASERDISC
+  BETAMAX
+  HD_DVD
+  DIGITAL
+  STREAMING
+  CD
+  VINYL
+  CASSETTE
+  EIGHT_TRACK
+  MINI_DISC
+  OTHER
 }
