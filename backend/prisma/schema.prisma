@@ -64,7 +64,7 @@ model Movie {
 model ExternalMatch {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now()) @updatedAt
 
   movieId     String
   movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
