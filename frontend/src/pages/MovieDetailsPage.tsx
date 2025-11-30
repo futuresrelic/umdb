@@ -242,6 +242,8 @@ function MovieDetailsPage() {
                 language: movie.language,
                 country: movie.country,
                 rating: movie.rating,
+                posterUrl: movie.posterUrl,
+                backdropUrl: movie.backdropUrl,
               }}
             />
 

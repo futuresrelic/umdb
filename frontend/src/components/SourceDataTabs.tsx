@@ -33,6 +33,11 @@ interface Props {
     language?: string;
     country?: string;
     rating?: number;
+    posterUrl?: string;
+    backdropUrl?: string;
+    voteCount?: number;
+    releaseDate?: string;
+    url?: string;
   };
 }
 
