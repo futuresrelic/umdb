@@ -19,6 +19,9 @@ RUN npm run build
 # Production stage
 FROM nginx:alpine
 
+# Copy build timestamp to bust cache in production stage too
+COPY .buildtimestamp /tmp/buildtimestamp
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Remove default nginx config and use Railway config
