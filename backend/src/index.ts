@@ -9,6 +9,7 @@ import externalRoutes from './routes/externalRoutes';
 import personRoutes from './routes/personRoutes';
 import genreRoutes from './routes/genreRoutes';
 import csvRoutes from './routes/csvRoutes';
+import physicalCopyRoutes from './routes/physicalCopyRoutes';
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ app.use('/api/external', externalRoutes);
 app.use('/api/people', personRoutes);
 app.use('/api/genres', genreRoutes);
 app.use('/api/csv', csvRoutes);
+app.use('/api/physical-copies', physicalCopyRoutes);
 
 // Error handling
 app.use(errorHandler);
