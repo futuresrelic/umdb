@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { movieApi } from '../services/api';
 import type { Movie } from '../types';
+import SourceMatchingModal from '../components/SourceMatchingModal';
+import PhysicalCopyManager from '../components/PhysicalCopyManager';
 
 function MovieDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showMatchingModal, setShowMatchingModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -88,12 +91,20 @@ function MovieDetailsPage() {
                   <p className="text-gray-600 italic mb-2">{movie.originalTitle}</p>
                 )}
               </div>
-              <button
-                onClick={handleDelete}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-              >
-                Delete
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowMatchingModal(true)}
+                  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+                >
+                  🔗 Match Sources
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-4 mb-6">
@@ -219,32 +230,60 @@ function MovieDetailsPage() {
 
             {movie.externalMatches && movie.externalMatches.length > 0 && (
               <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2">External Links</h2>
+                <h2 className="text-xl font-bold mb-2">External Sources</h2>
                 <div className="space-y-2">
                   {movie.externalMatches.map((match) => (
-                    <div key={match.id}>
-                      {match.url ? (
-                        <a
-                          href={match.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          {match.source}: {match.externalId}
-                        </a>
-                      ) : (
-                        <span className="text-gray-700">
-                          {match.source}: {match.externalId}
+                    <div key={match.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                      <div>
+                        {match.url ? (
+                          <a
+                            href={match.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                          >
+                            {match.source}
+                          </a>
+                        ) : (
+                          <span className="text-gray-700 font-medium">
+                            {match.source}
+                          </span>
+                        )}
+                        <span className="text-gray-500 text-sm ml-2">
+                          {match.title || match.externalId}
                         </span>
-                      )}
+                        {match.rating && (
+                          <span className="text-yellow-600 text-sm ml-2">
+                            ⭐ {match.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Physical Copy Manager */}
+            <PhysicalCopyManager movieId={movie.id} />
           </div>
         </div>
       </div>
+
+      {/* Source Matching Modal */}
+      {id && (
+        <SourceMatchingModal
+          movieId={id}
+          movieTitle={movie.title}
+          movieYear={movie.year || undefined}
+          isOpen={showMatchingModal}
+          onClose={() => setShowMatchingModal(false)}
+          onMatchSaved={() => {
+            setShowMatchingModal(false);
+            loadMovie(id);
+          }}
+        />
+      )}
     </div>
   );
 }
