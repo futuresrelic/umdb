@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma';
+import prisma from '../utils/prisma';
 import tmdbService from './tmdbService';
 import omdbService from './omdbService';
 import { AppError } from '../middleware/errorHandler';
