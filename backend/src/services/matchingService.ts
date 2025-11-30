@@ -106,10 +106,10 @@ class MatchingService {
   /**
    * Save a match to the database
    */
-  async saveMatch(movieId: string, source: ExternalSource, externalId: string): Promise<void> {
+  async saveMatch(movieId: string, source: ExternalSource, externalId: string) {
     const detailedData = await this.getDetailedData(source, externalId);
 
-    await prisma.externalMatch.upsert({
+    const externalMatch = await prisma.externalMatch.upsert({
       where: {
         movieId_source: {
           movieId,
@@ -166,16 +166,18 @@ class MatchingService {
           create: {
             movieId,
             title: altTitle.title,
-            country: altTitle.country,
+            region: altTitle.country,
             source
           },
           update: {
             title: altTitle.title,
-            country: altTitle.country
+            region: altTitle.country
           }
         });
       }
     }
+
+    return externalMatch;
   }
 
   /**

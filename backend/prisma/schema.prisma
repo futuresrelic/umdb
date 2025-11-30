@@ -134,6 +134,7 @@ model MoviePerson {
 
   role        PersonRole
   character   String?  // For actors
+  job         String?  // For crew (cinematographer, sound designer, etc.)
   order       Int?     // For ordering (e.g., billing order)
 
   @@unique([movieId, personId, role, character])
@@ -207,7 +208,7 @@ model AlternativeTitle {
   movie       Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
 
   title       String
-  country     String?  // Country where this title is used
+  region      String?  // Region/country code where this title is used (ISO 3166-1)
   type        String?  // Working title, Alternative title, etc.
   source      ExternalSource?
 
@@ -243,6 +244,7 @@ enum PersonRole {
   CINEMATOGRAPHER
   EDITOR
   COMPOSER
+  CREW          // General crew (camera, sound, art, etc.)
   ARTIST        // For music
   MUSICIAN      // For music
   BAND_MEMBER   // For music

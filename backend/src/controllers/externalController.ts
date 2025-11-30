@@ -3,6 +3,7 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import tmdbService from '../services/tmdbService';
 import omdbService from '../services/omdbService';
 import matchingService from '../services/matchingService';
+import { importService } from '../services/importService';
 import prisma from '../utils/prisma';
 import { ExternalSource } from '@prisma/client';
 
@@ -360,14 +361,38 @@ export const saveMatchToMovie = asyncHandler(async (req: Request, res: Response)
   }
 
   // Save the match
-  await matchingService.saveMatch(movieId, source as ExternalSource, externalId);
+  const savedMatch = await matchingService.saveMatch(movieId, source as ExternalSource, externalId);
 
-  // Return updated movie with all matches
+  // Automatically import cast, crew, genres, and alternate titles for TMDB matches
+  if (source === 'TMDB' && savedMatch) {
+    try {
+      await importService.importFromTMDB(movieId, savedMatch.id);
+      console.log(`Successfully imported data from TMDB for movie ${movieId}`);
+    } catch (error) {
+      console.error('Error importing data from TMDB:', error);
+      // Don't fail the request if import fails
+    }
+  }
+
+  // Return updated movie with all matches and imported data
   const updatedMovie = await prisma.movie.findUnique({
     where: { id: movieId },
     include: {
       externalMatches: true,
-      alternativeTitles: true
+      alternativeTitles: true,
+      movieGenres: {
+        include: {
+          genre: true
+        }
+      },
+      moviePeople: {
+        include: {
+          person: true
+        },
+        orderBy: {
+          order: 'asc'
+        }
+      }
     }
   });
 
