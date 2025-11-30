@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Copy build timestamp to bust Docker cache
+COPY .buildtimestamp ./
+
 COPY package*.json ./
 RUN npm ci
 
@@ -15,6 +18,9 @@ RUN npm run build
 
 # Production stage
 FROM nginx:alpine
+
+# Copy build timestamp to bust cache in production stage too
+COPY .buildtimestamp /tmp/buildtimestamp
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 
