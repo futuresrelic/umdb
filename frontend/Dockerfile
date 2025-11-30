@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Copy build timestamp to bust Docker cache
+COPY .buildtimestamp ./
+
 COPY package*.json ./
 RUN npm ci
 
