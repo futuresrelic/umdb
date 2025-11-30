@@ -56,6 +56,7 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
     location,
     purchaseDate,
     purchasePrice,
+    coverImageUrl,
     notes
   } = req.body;
 
@@ -88,6 +89,7 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
       location,
       purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
       purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
+      coverImageUrl,
       notes
     },
     include: {
@@ -121,6 +123,7 @@ export const updatePhysicalCopy = asyncHandler(async (req: Request, res: Respons
     location,
     purchaseDate,
     purchasePrice,
+    coverImageUrl,
     notes
   } = req.body;
 
@@ -153,6 +156,7 @@ export const updatePhysicalCopy = asyncHandler(async (req: Request, res: Respons
       ...(location !== undefined && { location }),
       ...(purchaseDate !== undefined && { purchaseDate: purchaseDate ? new Date(purchaseDate) : null }),
       ...(purchasePrice !== undefined && { purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null }),
+      ...(coverImageUrl !== undefined && { coverImageUrl }),
       ...(notes !== undefined && { notes })
     },
     include: {

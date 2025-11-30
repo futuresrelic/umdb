@@ -191,6 +191,7 @@ model PhysicalCopy {
   location    String?  // Where it's stored
   purchaseDate DateTime?
   purchasePrice Float?
+  coverImageUrl String?  // URL to cover image
   notes       String?  @db.Text
 
   @@index([movieId])
