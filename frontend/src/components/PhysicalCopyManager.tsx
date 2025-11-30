@@ -15,6 +15,7 @@ interface PhysicalCopy {
   location?: string;
   purchaseDate?: string;
   purchasePrice?: number;
+  coverImageUrl?: string;
   notes?: string;
 }
 
@@ -219,6 +220,20 @@ function PhysicalCopyManager({ movieId }: Props) {
             </div>
 
             <div>
+              <label className="block text-sm font-medium mb-1">Cover Image URL</label>
+              <input
+                type="url"
+                value={formData.coverImageUrl || ''}
+                onChange={(e) => setFormData({ ...formData, coverImageUrl: e.target.value })}
+                placeholder="https://example.com/cover-image.jpg"
+                className="w-full border rounded px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Paste a URL to an image of your physical copy's cover
+              </p>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-1">Notes</label>
               <textarea
                 value={formData.notes || ''}
@@ -249,41 +264,57 @@ function PhysicalCopyManager({ movieId }: Props) {
         <div className="space-y-3">
           {copies.map((copy) => (
             <div key={copy.id} className="border rounded-lg p-4 bg-white">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-medium">
-                    {formatLabel(copy.format)}
-                  </span>
-                  {copy.edition && (
-                    <span className="text-sm text-gray-600">• {copy.edition}</span>
-                  )}
-                  {copy.region && (
-                    <span className="text-sm text-gray-600">• {copy.region}</span>
+              <div className="flex gap-4">
+                {/* Cover image */}
+                {copy.coverImageUrl && (
+                  <div className="flex-shrink-0">
+                    <img
+                      src={copy.coverImageUrl}
+                      alt="Physical copy cover"
+                      className="w-24 h-32 object-cover rounded shadow"
+                    />
+                  </div>
+                )}
+
+                {/* Details */}
+                <div className="flex-1">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-medium">
+                        {formatLabel(copy.format)}
+                      </span>
+                      {copy.edition && (
+                        <span className="text-sm text-gray-600">• {copy.edition}</span>
+                      )}
+                      {copy.region && (
+                        <span className="text-sm text-gray-600">• {copy.region}</span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleDelete(copy.id)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-700">
+                    {copy.condition && <div><strong>Condition:</strong> {copy.condition}</div>}
+                    {copy.distributor && <div><strong>Distributor:</strong> {copy.distributor}</div>}
+                    {copy.location && <div><strong>Location:</strong> {copy.location}</div>}
+                    {copy.upc && <div><strong>UPC:</strong> {copy.upc}</div>}
+                    {copy.purchasePrice && <div><strong>Price:</strong> ${copy.purchasePrice.toFixed(2)}</div>}
+                    {copy.releaseDate && <div><strong>Released:</strong> {new Date(copy.releaseDate).toLocaleDateString()}</div>}
+                    {copy.purchaseDate && <div><strong>Purchased:</strong> {new Date(copy.purchaseDate).toLocaleDateString()}</div>}
+                  </div>
+
+                  {copy.notes && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      <strong>Notes:</strong> {copy.notes}
+                    </div>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDelete(copy.id)}
-                  className="text-red-600 hover:text-red-800 text-sm"
-                >
-                  Delete
-                </button>
               </div>
-
-              <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-700">
-                {copy.condition && <div><strong>Condition:</strong> {copy.condition}</div>}
-                {copy.distributor && <div><strong>Distributor:</strong> {copy.distributor}</div>}
-                {copy.location && <div><strong>Location:</strong> {copy.location}</div>}
-                {copy.upc && <div><strong>UPC:</strong> {copy.upc}</div>}
-                {copy.purchasePrice && <div><strong>Price:</strong> ${copy.purchasePrice.toFixed(2)}</div>}
-                {copy.releaseDate && <div><strong>Released:</strong> {new Date(copy.releaseDate).toLocaleDateString()}</div>}
-                {copy.purchaseDate && <div><strong>Purchased:</strong> {new Date(copy.purchaseDate).toLocaleDateString()}</div>}
-              </div>
-
-              {copy.notes && (
-                <div className="mt-2 text-sm text-gray-600">
-                  <strong>Notes:</strong> {copy.notes}
-                </div>
-              )}
             </div>
           ))}
         </div>

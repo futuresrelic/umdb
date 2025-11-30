@@ -4,6 +4,7 @@ import { movieApi } from '../services/api';
 import type { Movie } from '../types';
 import SourceMatchingModal from '../components/SourceMatchingModal';
 import PhysicalCopyManager from '../components/PhysicalCopyManager';
+import SourceDataTabs from '../components/SourceDataTabs';
 
 function MovieDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -228,41 +229,23 @@ function MovieDetailsPage() {
               </div>
             )}
 
-            {movie.externalMatches && movie.externalMatches.length > 0 && (
-              <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2">External Sources</h2>
-                <div className="space-y-2">
-                  {movie.externalMatches.map((match) => (
-                    <div key={match.id} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                      <div>
-                        {match.url ? (
-                          <a
-                            href={match.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            {match.source}
-                          </a>
-                        ) : (
-                          <span className="text-gray-700 font-medium">
-                            {match.source}
-                          </span>
-                        )}
-                        <span className="text-gray-500 text-sm ml-2">
-                          {match.title || match.externalId}
-                        </span>
-                        {match.rating && (
-                          <span className="text-yellow-600 text-sm ml-2">
-                            ⭐ {match.rating.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Source Data Comparison Tabs */}
+            <SourceDataTabs
+              matches={movie.externalMatches || []}
+              umdbData={{
+                title: movie.title,
+                originalTitle: movie.originalTitle,
+                year: movie.year,
+                runtime: movie.runtime,
+                plot: movie.plot,
+                tagline: movie.tagline,
+                language: movie.language,
+                country: movie.country,
+                rating: movie.rating,
+                posterUrl: movie.posterUrl,
+                backdropUrl: movie.backdropUrl,
+              }}
+            />
 
             {/* Physical Copy Manager */}
             <PhysicalCopyManager movieId={movie.id} />
