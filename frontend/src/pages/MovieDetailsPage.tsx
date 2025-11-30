@@ -12,6 +12,8 @@ function MovieDetailsPage() {
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
   const [showMatchingModal, setShowMatchingModal] = useState(false);
+  const [showAllCast, setShowAllCast] = useState(false);
+  const [showAllCrew, setShowAllCrew] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -61,6 +63,14 @@ function MovieDetailsPage() {
 
   const directors = movie.moviePeople?.filter((mp) => mp.role === 'DIRECTOR') || [];
   const actors = movie.moviePeople?.filter((mp) => mp.role === 'ACTOR') || [];
+  const writers = movie.moviePeople?.filter((mp) => mp.role === 'WRITER') || [];
+  const producers = movie.moviePeople?.filter((mp) => mp.role === 'PRODUCER') || [];
+  const crew = movie.moviePeople?.filter((mp) =>
+    !['DIRECTOR', 'ACTOR', 'WRITER', 'PRODUCER'].includes(mp.role)
+  ) || [];
+
+  const displayedActors = showAllCast ? actors : actors.slice(0, 10);
+  const displayedCrew = showAllCrew ? [...writers, ...producers, ...crew] : [...writers, ...producers, ...crew].slice(0, 5);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -165,9 +175,14 @@ function MovieDetailsPage() {
                 <h2 className="text-xl font-bold mb-2">Director(s)</h2>
                 <div className="space-y-1">
                   {directors.map((mp) => (
-                    <p key={mp.id} className="text-gray-700">
-                      {mp.person.name}
-                    </p>
+                    <div key={mp.id}>
+                      <Link
+                        to={`/person/${mp.person.id}`}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {mp.person.name}
+                      </Link>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -175,13 +190,57 @@ function MovieDetailsPage() {
 
             {actors.length > 0 && (
               <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2">Cast</h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xl font-bold">Cast</h2>
+                  {actors.length > 10 && (
+                    <button
+                      onClick={() => setShowAllCast(!showAllCast)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {showAllCast ? 'Show Less' : `Show All (${actors.length})`}
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-1">
-                  {actors.slice(0, 10).map((mp) => (
-                    <p key={mp.id} className="text-gray-700">
-                      {mp.person.name}
+                  {displayedActors.map((mp) => (
+                    <div key={mp.id} className="text-gray-700">
+                      <Link
+                        to={`/person/${mp.person.id}`}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        {mp.person.name}
+                      </Link>
                       {mp.character && <span className="text-gray-500"> as {mp.character}</span>}
-                    </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(writers.length > 0 || producers.length > 0 || crew.length > 0) && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-xl font-bold">Crew</h2>
+                  {(writers.length + producers.length + crew.length) > 5 && (
+                    <button
+                      onClick={() => setShowAllCrew(!showAllCrew)}
+                      className="text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      {showAllCrew ? 'Show Less' : `Show All (${writers.length + producers.length + crew.length})`}
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {displayedCrew.map((mp) => (
+                    <div key={mp.id} className="text-gray-700">
+                      <Link
+                        to={`/person/${mp.person.id}`}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        {mp.person.name}
+                      </Link>
+                      <span className="text-gray-500"> - {mp.role}</span>
+                    </div>
                   ))}
                 </div>
               </div>

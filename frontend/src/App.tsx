@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import BrowseMoviesPage from './pages/BrowseMoviesPage';
 import MovieDetailsPage from './pages/MovieDetailsPage';
+import PersonDetailsPage from './pages/PersonDetailsPage';
 import AddMoviePage from './pages/AddMoviePage';
 import SearchExternalPage from './pages/SearchExternalPage';
 import ImportCSVPage from './pages/ImportCSVPage';
@@ -53,6 +54,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/browse" element={<BrowseMoviesPage />} />
             <Route path="/movie/:id" element={<MovieDetailsPage />} />
+            <Route path="/person/:id" element={<PersonDetailsPage />} />
             <Route path="/add" element={<AddMoviePage />} />
             <Route path="/search-external" element={<SearchExternalPage />} />
             <Route path="/import-csv" element={<ImportCSVPage />} />

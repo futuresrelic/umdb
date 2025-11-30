@@ -22,7 +22,8 @@ export const getAllPeople = asyncHandler(async (req: Request, res: Response) => 
                 id: true,
                 title: true,
                 year: true,
-                posterUrl: true
+                posterUrl: true,
+                rating: true
               }
             }
           },
@@ -57,7 +58,8 @@ export const getPersonById = asyncHandler(async (req: Request, res: Response) =>
               id: true,
               title: true,
               year: true,
-              posterUrl: true
+              posterUrl: true,
+              rating: true
             }
           }
         },
