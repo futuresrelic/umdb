@@ -11,6 +11,8 @@ import genreRoutes from './routes/genreRoutes';
 import csvRoutes from './routes/csvRoutes';
 import physicalCopyRoutes from './routes/physicalCopyRoutes';
 
+// Force redeploy with latest schema and routes
+
 dotenv.config();
 
 const app = express();
