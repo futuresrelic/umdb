@@ -42,19 +42,25 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
   }
 
   // Rating range filter
-  if (minRating) {
-    where.rating = { ...where.rating, gte: parseFloat(String(minRating)) };
-  }
-  if (maxRating) {
-    where.rating = { ...where.rating, lte: parseFloat(String(maxRating)) };
+  if (minRating || maxRating) {
+    where.rating = {};
+    if (minRating) {
+      where.rating.gte = parseFloat(String(minRating));
+    }
+    if (maxRating) {
+      where.rating.lte = parseFloat(String(maxRating));
+    }
   }
 
   // Runtime range filter
-  if (minRuntime) {
-    where.runtime = { ...where.runtime, gte: parseInt(String(minRuntime)) };
-  }
-  if (maxRuntime) {
-    where.runtime = { ...where.runtime, lte: parseInt(String(maxRuntime)) };
+  if (minRuntime || maxRuntime) {
+    where.runtime = {};
+    if (minRuntime) {
+      where.runtime.gte = parseInt(String(minRuntime));
+    }
+    if (maxRuntime) {
+      where.runtime.lte = parseInt(String(maxRuntime));
+    }
   }
 
   // Genre filter
