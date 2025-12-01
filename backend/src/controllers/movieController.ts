@@ -4,10 +4,26 @@ import prisma from '../utils/prisma';
 import { Prisma } from '@prisma/client';
 
 export const getAllMovies = asyncHandler(async (req: Request, res: Response) => {
-  const { search, year, sourceType, limit = 50, offset = 0 } = req.query;
+  const {
+    search,
+    year,
+    sourceType,
+    genre,
+    director,
+    actor,
+    minRating,
+    maxRating,
+    minRuntime,
+    maxRuntime,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+    limit = 50,
+    offset = 0
+  } = req.query;
 
   const where: Prisma.MovieWhereInput = {};
 
+  // Text search
   if (search) {
     where.OR = [
       { title: { contains: String(search), mode: 'insensitive' } },
@@ -15,12 +31,85 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
     ];
   }
 
+  // Year filter
   if (year) {
     where.year = parseInt(String(year));
   }
 
+  // Source type filter
   if (sourceType) {
     where.sourceType = String(sourceType) as any;
+  }
+
+  // Rating range filter
+  if (minRating) {
+    where.rating = { ...where.rating, gte: parseFloat(String(minRating)) };
+  }
+  if (maxRating) {
+    where.rating = { ...where.rating, lte: parseFloat(String(maxRating)) };
+  }
+
+  // Runtime range filter
+  if (minRuntime) {
+    where.runtime = { ...where.runtime, gte: parseInt(String(minRuntime)) };
+  }
+  if (maxRuntime) {
+    where.runtime = { ...where.runtime, lte: parseInt(String(maxRuntime)) };
+  }
+
+  // Genre filter
+  if (genre) {
+    where.movieGenres = {
+      some: {
+        genre: {
+          name: { equals: String(genre), mode: 'insensitive' }
+        }
+      }
+    };
+  }
+
+  // Director filter
+  if (director) {
+    where.moviePeople = {
+      some: {
+        role: 'DIRECTOR',
+        person: {
+          name: { contains: String(director), mode: 'insensitive' }
+        }
+      }
+    };
+  }
+
+  // Actor filter
+  if (actor) {
+    where.moviePeople = {
+      some: {
+        role: 'ACTOR',
+        person: {
+          name: { contains: String(actor), mode: 'insensitive' }
+        }
+      }
+    };
+  }
+
+  // Build orderBy based on sortBy parameter
+  let orderBy: Prisma.MovieOrderByWithRelationInput = {};
+  switch (sortBy) {
+    case 'title':
+      orderBy = { title: sortOrder as 'asc' | 'desc' };
+      break;
+    case 'year':
+      orderBy = { year: sortOrder as 'asc' | 'desc' };
+      break;
+    case 'rating':
+      orderBy = { rating: sortOrder as 'asc' | 'desc' };
+      break;
+    case 'runtime':
+      orderBy = { runtime: sortOrder as 'asc' | 'desc' };
+      break;
+    case 'createdAt':
+    default:
+      orderBy = { createdAt: sortOrder as 'asc' | 'desc' };
   }
 
   const [movies, total] = await Promise.all([
@@ -43,7 +132,7 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
           take: 5
         }
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy,
       take: parseInt(String(limit)),
       skip: parseInt(String(offset))
     }),
@@ -54,7 +143,8 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
     movies,
     total,
     limit: parseInt(String(limit)),
-    offset: parseInt(String(offset))
+    offset: parseInt(String(offset)),
+    hasMore: parseInt(String(offset)) + movies.length < total
   });
 });
 
