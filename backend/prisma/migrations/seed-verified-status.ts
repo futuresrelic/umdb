@@ -8,13 +8,16 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
+  // Only verify entries that have no submittedById — these are pre-auth entries
+  // that were entered before the user system existed. New pending submissions
+  // (which have a submittedById) are left alone.
   const [movies, copies] = await Promise.all([
     prisma.movie.updateMany({
-      where: { status: 'PENDING' },
+      where: { status: 'PENDING', submittedById: null },
       data: { status: 'VERIFIED', verifiedAt: new Date() },
     }),
     prisma.physicalCopy.updateMany({
-      where: { status: 'PENDING' },
+      where: { status: 'PENDING', submittedById: null },
       data: { status: 'VERIFIED', verifiedAt: new Date() },
     }),
   ]);
