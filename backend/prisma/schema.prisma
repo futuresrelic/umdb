@@ -203,6 +203,7 @@ model PhysicalCopy {
 
   // Format details
   format      PhysicalFormat
+  language    String?  // Language(s) of this release, e.g. "French", "Bilingual FR/EN"
   region      String?  // DVD region, Blu-ray region, etc.
   edition     String?  // Collector's Edition, Director's Cut, etc.
 

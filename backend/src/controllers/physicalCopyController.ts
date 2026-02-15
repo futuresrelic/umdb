@@ -45,6 +45,7 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
   const { movieId } = req.params;
   const {
     format,
+    language,
     region,
     edition,
     distributor,
@@ -81,6 +82,7 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
     data: {
       movieId,
       format,
+      language,
       region,
       edition,
       distributor,
@@ -118,6 +120,7 @@ export const updatePhysicalCopy = asyncHandler(async (req: Request, res: Respons
   const { id } = req.params;
   const {
     format,
+    language,
     region,
     edition,
     distributor,
@@ -151,6 +154,7 @@ export const updatePhysicalCopy = asyncHandler(async (req: Request, res: Respons
     where: { id },
     data: {
       ...(format && { format }),
+      ...(language !== undefined && { language }),
       ...(region !== undefined && { region }),
       ...(edition !== undefined && { edition }),
       ...(distributor !== undefined && { distributor }),

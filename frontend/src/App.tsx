@@ -11,6 +11,7 @@ import CollectionPage from './pages/CollectionPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import MySubmissionsPage from './pages/MySubmissionsPage';
 import AdminPage from './pages/AdminPage';
+import EditMoviePage from './pages/EditMoviePage';
 
 function NavBar() {
   const { user, loading, login, logout, isAdmin } = useAuth();
@@ -109,6 +110,7 @@ function App() {
               <Route path="/collection" element={<CollectionPage />} />
               <Route path="/my-submissions" element={<MySubmissionsPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/edit/:id" element={<EditMoviePage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
             </Routes>
           </main>

@@ -4,6 +4,7 @@ import api from '../services/api';
 interface PhysicalCopy {
   id: string;
   format: string;
+  language?: string;
   region?: string;
   edition?: string;
   distributor?: string;
@@ -17,10 +18,12 @@ interface PhysicalCopy {
   purchasePrice?: number;
   coverImageUrl?: string;
   notes?: string;
+  status?: string;
 }
 
 interface Props {
   movieId: string;
+  canEdit?: boolean;
 }
 
 const FORMATS = ['DVD', 'BLU_RAY', 'BLU_RAY_4K', 'VHS', 'LASERDISC', 'BETAMAX', 'HD_DVD', 'DIGITAL', 'STREAMING', 'CD', 'VINYL', 'CASSETTE', 'EIGHT_TRACK', 'MINI_DISC', 'OTHER'];
@@ -70,6 +73,17 @@ function CopyForm({
             value={form.edition || ""}
             onChange={(e) => set("edition", e.target.value)}
             placeholder="Collector Edition, Director Cut..."
+            className="w-full border rounded px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Language(s)</label>
+          <input
+            type="text"
+            value={form.language || ""}
+            onChange={(e) => set("language", e.target.value)}
+            placeholder="French, English, Bilingual FR/EN..."
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -230,7 +244,7 @@ function CopyForm({
   );
 }
 
-function PhysicalCopyManager({ movieId }: Props) {
+function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
   const [copies, setCopies] = useState<PhysicalCopy[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -300,12 +314,14 @@ function PhysicalCopyManager({ movieId }: Props) {
     <div className="mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">Physical Copies</h2>
-        <button
-          onClick={() => { setShowAddForm(!showAddForm); setEditingId(null); }}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
-        >
-          {showAddForm ? "Cancel" : "+ Add Copy"}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { setShowAddForm(!showAddForm); setEditingId(null); }}
+            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
+          >
+            {showAddForm ? "Cancel" : "+ Add Copy"}
+          </button>
+        )}
       </div>
 
       {showAddForm && (
@@ -364,6 +380,11 @@ function PhysicalCopyManager({ movieId }: Props) {
                         <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-medium text-sm">
                           {FORMAT_LABELS[copy.format] || copy.format}
                         </span>
+                        {copy.language && (
+                          <span className="text-sm bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded">
+                            {copy.language}
+                          </span>
+                        )}
                         {copy.edition && (
                           <span className="text-sm text-gray-600">• {copy.edition}</span>
                         )}
@@ -375,25 +396,33 @@ function PhysicalCopyManager({ movieId }: Props) {
                             {copy.condition}
                           </span>
                         )}
+                        {copy.status === 'PENDING' && (
+                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded font-medium">
+                            Pending
+                          </span>
+                        )}
                       </div>
-                      <div className="flex gap-2 ml-2 flex-shrink-0">
-                        <button
-                          onClick={() => { setEditingId(copy.id); setShowAddForm(false); }}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(copy.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      {canEdit && (
+                        <div className="flex gap-2 ml-2 flex-shrink-0">
+                          <button
+                            onClick={() => { setEditingId(copy.id); setShowAddForm(false); }}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(copy.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-1 text-sm text-gray-700">
                       {copy.distributor && <div><span className="font-medium">Distributor:</span> {copy.distributor}</div>}
+                      {copy.language && <div><span className="font-medium">Language:</span> {copy.language}</div>}
                       {copy.location && <div><span className="font-medium">Location:</span> {copy.location}</div>}
                       {copy.upc && <div><span className="font-medium">UPC:</span> {copy.upc}</div>}
                       {copy.ean && <div><span className="font-medium">EAN:</span> {copy.ean}</div>}

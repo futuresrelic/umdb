@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { movieApi } from '../services/api';
+import { movieApi, adminApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import type { Movie } from '../types';
 import SourceMatchingModal from '../components/SourceMatchingModal';
 import PhysicalCopyManager from '../components/PhysicalCopyManager';
@@ -9,16 +10,16 @@ import SourceDataTabs from '../components/SourceDataTabs';
 function MovieDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(true);
   const [showMatchingModal, setShowMatchingModal] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllCrew, setShowAllCrew] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      loadMovie(id);
-    }
+    if (id) loadMovie(id);
   }, [id]);
 
   const loadMovie = async (movieId: string) => {
@@ -35,13 +36,36 @@ function MovieDetailsPage() {
 
   const handleDelete = async () => {
     if (!id || !confirm('Are you sure you want to delete this movie?')) return;
-
     try {
       await movieApi.delete(id);
       navigate('/browse');
     } catch (error) {
       console.error('Failed to delete movie:', error);
       alert('Failed to delete movie');
+    }
+  };
+
+  const handleVerify = async () => {
+    if (!id) return;
+    setVerifying(true);
+    try {
+      await adminApi.verifyMovie(id);
+      await loadMovie(id);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!id) return;
+    const reason = prompt('Rejection reason (optional):');
+    if (reason === null) return; // cancelled
+    setVerifying(true);
+    try {
+      await adminApi.rejectMovie(id, reason);
+      await loadMovie(id);
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -61,6 +85,9 @@ function MovieDetailsPage() {
     );
   }
 
+  const status = (movie as any).status as string | undefined;
+  const canEdit = user && (isAdmin || (movie as any).submittedById === user.id);
+
   const directors = movie.moviePeople?.filter((mp) => mp.role === 'DIRECTOR') || [];
   const actors = movie.moviePeople?.filter((mp) => mp.role === 'ACTOR') || [];
   const writers = movie.moviePeople?.filter((mp) => mp.role === 'WRITER') || [];
@@ -78,15 +105,52 @@ function MovieDetailsPage() {
         ← Back to Browse
       </Link>
 
+      {/* Status banner */}
+      {status === 'PENDING' && (
+        <div className="mb-4 bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-3 flex items-center justify-between">
+          <div>
+            <span className="font-semibold text-yellow-800">Pending Verification</span>
+            <span className="text-yellow-700 text-sm ml-2">— only visible to you until an admin approves it.</span>
+          </div>
+          {isAdmin && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleVerify}
+                disabled={verifying}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                Verify
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={verifying}
+                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {status === 'REJECTED' && (
+        <div className="mb-4 bg-red-50 border border-red-300 rounded-lg px-4 py-3">
+          <span className="font-semibold text-red-800">Rejected</span>
+          {(movie as any).rejectionReason && (
+            <span className="text-red-700 text-sm ml-2">— {(movie as any).rejectionReason}</span>
+          )}
+        </div>
+      )}
+      {status === 'VERIFIED' && isAdmin && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-green-700 text-sm font-medium">Verified — publicly visible</span>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
         <div className="md:flex">
           <div className="md:w-1/3">
             {movie.posterUrl ? (
-              <img
-                src={movie.posterUrl}
-                alt={movie.title}
-                className="w-full h-full object-cover"
-              />
+              <img src={movie.posterUrl} alt={movie.title} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-96 bg-gray-200 flex items-center justify-center">
                 <span className="text-8xl">🎬</span>
@@ -102,50 +166,48 @@ function MovieDetailsPage() {
                   <p className="text-gray-600 italic mb-2">{movie.originalTitle}</p>
                 )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap justify-end">
                 <button
                   onClick={() => setShowMatchingModal(true)}
-                  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+                  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition text-sm"
                 >
                   🔗 Match Sources
                 </button>
-                <button
-                  onClick={handleDelete}
-                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
-                >
-                  Delete
-                </button>
+                {canEdit && (
+                  <Link
+                    to={`/edit/${movie.id}`}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition text-sm"
+                  >
+                    ✏️ Edit
+                  </Link>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={handleDelete}
+                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition text-sm"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-4 mb-6">
-              {movie.year && (
-                <span className="bg-gray-100 px-3 py-1 rounded">{movie.year}</span>
-              )}
-              {movie.runtime && (
-                <span className="bg-gray-100 px-3 py-1 rounded">{movie.runtime} min</span>
-              )}
-              <span
-                className={`px-3 py-1 rounded ${
-                  movie.sourceType === 'MANUAL'
-                    ? 'bg-blue-100 text-blue-800'
-                    : movie.sourceType === 'TMDB'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}
-              >
+              {movie.year && <span className="bg-gray-100 px-3 py-1 rounded">{movie.year}</span>}
+              {movie.runtime && <span className="bg-gray-100 px-3 py-1 rounded">{movie.runtime} min</span>}
+              <span className={`px-3 py-1 rounded ${
+                movie.sourceType === 'MANUAL' ? 'bg-blue-100 text-blue-800'
+                : movie.sourceType === 'TMDB' ? 'bg-green-100 text-green-800'
+                : 'bg-yellow-100 text-yellow-800'
+              }`}>
                 {movie.sourceType}
               </span>
               {movie.rating && (
-                <span className="bg-yellow-100 px-3 py-1 rounded">
-                  ⭐ {movie.rating.toFixed(1)}
-                </span>
+                <span className="bg-yellow-100 px-3 py-1 rounded">⭐ {movie.rating.toFixed(1)}</span>
               )}
             </div>
 
-            {movie.tagline && (
-              <p className="text-xl text-gray-600 italic mb-4">{movie.tagline}</p>
-            )}
+            {movie.tagline && <p className="text-xl text-gray-600 italic mb-4">{movie.tagline}</p>}
 
             {movie.plot && (
               <div className="mb-6">
@@ -159,10 +221,7 @@ function MovieDetailsPage() {
                 <h2 className="text-xl font-bold mb-2">Genres</h2>
                 <div className="flex flex-wrap gap-2">
                   {movie.movieGenres.map((mg) => (
-                    <span
-                      key={mg.id}
-                      className="bg-purple-100 text-purple-800 px-3 py-1 rounded"
-                    >
+                    <span key={mg.id} className="bg-purple-100 text-purple-800 px-3 py-1 rounded">
                       {mg.genre.name}
                     </span>
                   ))}
@@ -176,10 +235,7 @@ function MovieDetailsPage() {
                 <div className="space-y-1">
                   {directors.map((mp) => (
                     <div key={mp.id}>
-                      <Link
-                        to={`/person/${mp.person.id}`}
-                        className="text-blue-600 hover:text-blue-800 font-medium"
-                      >
+                      <Link to={`/person/${mp.person.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
                         {mp.person.name}
                       </Link>
                     </div>
@@ -193,10 +249,7 @@ function MovieDetailsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-xl font-bold">Cast</h2>
                   {actors.length > 10 && (
-                    <button
-                      onClick={() => setShowAllCast(!showAllCast)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
+                    <button onClick={() => setShowAllCast(!showAllCast)} className="text-sm text-blue-600 hover:text-blue-800">
                       {showAllCast ? 'Show Less' : `Show All (${actors.length})`}
                     </button>
                   )}
@@ -204,10 +257,7 @@ function MovieDetailsPage() {
                 <div className="space-y-1">
                   {displayedActors.map((mp) => (
                     <div key={mp.id} className="text-gray-700">
-                      <Link
-                        to={`/person/${mp.person.id}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
+                      <Link to={`/person/${mp.person.id}`} className="text-blue-600 hover:text-blue-800">
                         {mp.person.name}
                       </Link>
                       {mp.character && <span className="text-gray-500"> as {mp.character}</span>}
@@ -222,10 +272,7 @@ function MovieDetailsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-xl font-bold">Crew</h2>
                   {(writers.length + producers.length + crew.length) > 5 && (
-                    <button
-                      onClick={() => setShowAllCrew(!showAllCrew)}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
+                    <button onClick={() => setShowAllCrew(!showAllCrew)} className="text-sm text-blue-600 hover:text-blue-800">
                       {showAllCrew ? 'Show Less' : `Show All (${writers.length + producers.length + crew.length})`}
                     </button>
                   )}
@@ -233,10 +280,7 @@ function MovieDetailsPage() {
                 <div className="space-y-1">
                   {displayedCrew.map((mp) => (
                     <div key={mp.id} className="text-gray-700">
-                      <Link
-                        to={`/person/${mp.person.id}`}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
+                      <Link to={`/person/${mp.person.id}`} className="text-blue-600 hover:text-blue-800">
                         {mp.person.name}
                       </Link>
                       <span className="text-gray-500"> - {mp.role}</span>
@@ -260,20 +304,6 @@ function MovieDetailsPage() {
               </div>
             )}
 
-            {movie.physicalFormat && (
-              <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2">Physical Format</h2>
-                <p className="text-gray-700">{movie.physicalFormat}</p>
-              </div>
-            )}
-
-            {movie.distributor && (
-              <div className="mb-6">
-                <h2 className="text-xl font-bold mb-2">Distributor</h2>
-                <p className="text-gray-700">{movie.distributor}</p>
-              </div>
-            )}
-
             {movie.upc && (
               <div className="mb-6">
                 <h2 className="text-xl font-bold mb-2">UPC</h2>
@@ -288,7 +318,6 @@ function MovieDetailsPage() {
               </div>
             )}
 
-            {/* Source Data Comparison Tabs */}
             <SourceDataTabs
               matches={movie.externalMatches || []}
               umdbData={{
@@ -306,13 +335,11 @@ function MovieDetailsPage() {
               }}
             />
 
-            {/* Physical Copy Manager */}
-            <PhysicalCopyManager movieId={movie.id} />
+            <PhysicalCopyManager movieId={movie.id} canEdit={!!canEdit} />
           </div>
         </div>
       </div>
 
-      {/* Source Matching Modal */}
       {id && (
         <SourceMatchingModal
           movieId={id}
@@ -320,10 +347,7 @@ function MovieDetailsPage() {
           movieYear={movie.year || undefined}
           isOpen={showMatchingModal}
           onClose={() => setShowMatchingModal(false)}
-          onMatchSaved={() => {
-            setShowMatchingModal(false);
-            loadMovie(id);
-          }}
+          onMatchSaved={() => { setShowMatchingModal(false); loadMovie(id); }}
         />
       )}
     </div>
