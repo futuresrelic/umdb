@@ -6,6 +6,7 @@ import PersonDetailsPage from './pages/PersonDetailsPage';
 import AddMoviePage from './pages/AddMoviePage';
 import SearchExternalPage from './pages/SearchExternalPage';
 import ImportCSVPage from './pages/ImportCSVPage';
+import CollectionPage from './pages/CollectionPage';
 
 function App() {
   return (
@@ -38,6 +39,12 @@ function App() {
                     Search External
                   </Link>
                   <Link
+                    to="/collection"
+                    className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
+                  >
+                    My Collection
+                  </Link>
+                  <Link
                     to="/import-csv"
                     className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition"
                   >
@@ -58,13 +65,18 @@ function App() {
             <Route path="/add" element={<AddMoviePage />} />
             <Route path="/search-external" element={<SearchExternalPage />} />
             <Route path="/import-csv" element={<ImportCSVPage />} />
+            <Route path="/collection" element={<CollectionPage />} />
           </Routes>
         </main>
 
         <footer className="bg-gray-900 text-white mt-16">
-          <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-            <p className="text-center text-gray-400">
+          <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 text-center space-y-2">
+            <p className="text-gray-400">
               UMDB - Universal Media Database &copy; {new Date().getFullYear()}
+            </p>
+            <p className="text-gray-500 text-xs">
+              This product uses the TMDB API but is not endorsed or certified by TMDB.
+              Movie data may also be sourced from OMDb API.
             </p>
           </div>
         </footer>

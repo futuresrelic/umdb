@@ -10,6 +10,7 @@ import personRoutes from './routes/personRoutes';
 import genreRoutes from './routes/genreRoutes';
 import csvRoutes from './routes/csvRoutes';
 import physicalCopyRoutes from './routes/physicalCopyRoutes';
+import publicRoutes from './routes/publicRoutes';
 
 // Force redeploy with latest schema and routes
 
@@ -26,6 +27,8 @@ const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : ['http://localhost:5173'];
 
+// CORS configuration - restricted to configured origins
+// Note: /api/public routes are accessible from any server-side caller (no Origin header)
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps, Postman, etc.)
@@ -54,6 +57,7 @@ app.use('/api/people', personRoutes);
 app.use('/api/genres', genreRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/physical-copies', physicalCopyRoutes);
+app.use('/api/public', publicRoutes);
 
 // Error handling
 app.use(errorHandler);
