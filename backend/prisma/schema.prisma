@@ -9,11 +9,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Users (Google OAuth)
+model User {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  googleId    String   @unique
+  email       String   @unique
+  name        String
+  photo       String?
+  role        UserRole @default(USER)
+
+  submittedMovies       Movie[]        @relation("SubmittedMovies")
+  submittedPhysicalCopies PhysicalCopy[] @relation("SubmittedPhysicalCopies")
+
+  @@index([email])
+}
+
 // Movie is the core entity
 model Movie {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Submission tracking
+  status        EntryStatus @default(PENDING)
+  submittedById String?
+  submittedBy   User?    @relation("SubmittedMovies", fields: [submittedById], references: [id])
+  verifiedAt    DateTime?
+  rejectedAt    DateTime?
+  rejectionReason String? @db.Text
 
   // Basic info
   title       String
@@ -195,6 +221,14 @@ model PhysicalCopy {
   coverImageUrl String?  // URL to cover image
   notes       String?  @db.Text
 
+  // Submission tracking
+  status        EntryStatus @default(PENDING)
+  submittedById String?
+  submittedBy   User?    @relation("SubmittedPhysicalCopies", fields: [submittedById], references: [id])
+  verifiedAt    DateTime?
+  rejectedAt    DateTime?
+  rejectionReason String? @db.Text
+
   @@index([movieId])
   @@index([format])
 }
@@ -217,6 +251,17 @@ model AlternativeTitle {
 }
 
 // Enums
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum EntryStatus {
+  PENDING    // Awaiting admin verification
+  VERIFIED   // Publicly visible
+  REJECTED   // Rejected by admin
+}
+
 enum SourceType {
   MANUAL      // Entered by user from physical media
   TMDB        // Imported from TMDB

@@ -10,6 +10,15 @@ const api = axios.create({
   },
 });
 
+// Inject JWT token from localStorage on every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('umdb_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Movies
 export const movieApi = {
   getAll: async (params?: {
@@ -124,6 +133,70 @@ export const genreApi = {
 
   delete: async (id: string) => {
     await api.delete(`/genres/${id}`);
+  },
+};
+
+// Auth
+export const authApi = {
+  getGoogleUrl: async (): Promise<string> => {
+    const response = await api.get<{ url: string }>('/auth/google');
+    return response.data.url;
+  },
+
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data.user;
+  },
+};
+
+// Admin
+export const adminApi = {
+  getPending: async () => {
+    const response = await api.get('/admin/pending');
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get('/admin/stats');
+    return response.data;
+  },
+
+  verifyMovie: async (id: string) => {
+    const response = await api.post(`/admin/movies/${id}/verify`);
+    return response.data;
+  },
+
+  rejectMovie: async (id: string, reason?: string) => {
+    const response = await api.post(`/admin/movies/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  mergeMovies: async (sourceId: string, targetId: string) => {
+    const response = await api.post(`/admin/movies/${sourceId}/merge/${targetId}`);
+    return response.data;
+  },
+
+  verifyPhysicalCopy: async (id: string) => {
+    const response = await api.post(`/admin/physical-copies/${id}/verify`);
+    return response.data;
+  },
+
+  rejectPhysicalCopy: async (id: string, reason?: string) => {
+    const response = await api.post(`/admin/physical-copies/${id}/reject`, { reason });
+    return response.data;
+  },
+
+  getUsers: async () => {
+    const response = await api.get('/admin/users');
+    return response.data;
+  },
+};
+
+// User submissions
+export const userApi = {
+  getMySubmissions: async () => {
+    const response = await api.get('/users/me/submissions');
+    return response.data;
   },
 };
 

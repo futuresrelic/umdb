@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, EntryStatus } from '@prisma/client';
 
 export const getAllMovies = asyncHandler(async (req: Request, res: Response) => {
   const {
@@ -22,6 +22,17 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
   } = req.query;
 
   const where: Prisma.MovieWhereInput = {};
+
+  // Status filter: show VERIFIED + user's own PENDING entries
+  const userId = req.user?.id;
+  if (userId) {
+    where.OR = [
+      { status: EntryStatus.VERIFIED },
+      { status: EntryStatus.PENDING, submittedById: userId },
+    ];
+  } else {
+    where.status = EntryStatus.VERIFIED;
+  }
 
   // Text search
   if (search) {
@@ -208,6 +219,10 @@ export const createMovie = asyncHandler(async (req: Request, res: Response) => {
     throw new AppError('Title is required', 400);
   }
 
+  const submittedById = req.user?.id;
+  // Admins' entries are auto-verified
+  const isAdmin = req.user?.role === 'ADMIN';
+
   const movie = await prisma.movie.create({
     data: {
       title,
@@ -226,6 +241,9 @@ export const createMovie = asyncHandler(async (req: Request, res: Response) => {
       upc,
       notes,
       rating: rating ? parseFloat(rating) : null,
+      status: isAdmin ? EntryStatus.VERIFIED : EntryStatus.PENDING,
+      submittedById: submittedById || null,
+      verifiedAt: isAdmin ? new Date() : null,
       movieGenres: genres
         ? {
             create: genres.map((genreId: string) => ({

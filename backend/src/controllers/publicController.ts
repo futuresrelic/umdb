@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
+import { EntryStatus } from '@prisma/client';
 
 /**
  * UMDB Public API
@@ -20,9 +21,10 @@ export const searchMovies = asyncHandler(async (req: Request, res: Response) => 
   const skip = parseInt(offset as string) || 0;
 
   if (upc) {
-    // Barcode/UPC lookup - find movie via physical copy
+    // Barcode/UPC lookup - find movie via physical copy (VERIFIED only)
     const copies = await prisma.physicalCopy.findMany({
       where: {
+        status: EntryStatus.VERIFIED,
         OR: [
           { upc: { equals: upc as string } },
           { ean: { equals: upc as string } },
@@ -61,8 +63,9 @@ export const searchMovies = asyncHandler(async (req: Request, res: Response) => 
     return res.json({ movies, total: movies.length, query: { upc } });
   }
 
-  // Title search
+  // Title search - VERIFIED only for public API
   const where: any = {
+    status: EntryStatus.VERIFIED,
     title: { contains: q as string, mode: 'insensitive' }
   };
   if (year) {
@@ -127,7 +130,7 @@ export const getMovie = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
   const movie = await prisma.movie.findUnique({
-    where: { id },
+    where: { id, status: EntryStatus.VERIFIED },
     include: {
       movieGenres: { include: { genre: true } },
       moviePeople: {
@@ -167,6 +170,7 @@ export const lookupBarcode = asyncHandler(async (req: Request, res: Response) =>
 
   const copies = await prisma.physicalCopy.findMany({
     where: {
+      status: EntryStatus.VERIFIED,
       OR: [
         { upc: code },
         { ean: code },
@@ -221,7 +225,7 @@ export const getMoviePhysicalCopies = asyncHandler(async (req: Request, res: Res
   const { id } = req.params;
 
   const movie = await prisma.movie.findUnique({
-    where: { id },
+    where: { id, status: EntryStatus.VERIFIED },
     select: { id: true, title: true, year: true, posterUrl: true }
   });
 
@@ -230,7 +234,7 @@ export const getMoviePhysicalCopies = asyncHandler(async (req: Request, res: Res
   }
 
   const copies = await prisma.physicalCopy.findMany({
-    where: { movieId: id },
+    where: { movieId: id, status: EntryStatus.VERIFIED },
     orderBy: { createdAt: 'desc' }
   });
 
@@ -298,7 +302,8 @@ export const submitPhysicalCopy = asyncHandler(async (req: Request, res: Respons
       releaseDate: releaseDate ? new Date(releaseDate) : null,
       condition: condition || null,
       notes: notes || null,
-      coverImageUrl: coverImageUrl || null
+      coverImageUrl: coverImageUrl || null,
+      status: EntryStatus.PENDING,
     }
   });
 
@@ -308,8 +313,8 @@ export const submitPhysicalCopy = asyncHandler(async (req: Request, res: Respons
 // Get UMDB stats (for partner integrations)
 export const getStats = asyncHandler(async (_req: Request, res: Response) => {
   const [movieCount, physicalCopyCount, personCount] = await Promise.all([
-    prisma.movie.count(),
-    prisma.physicalCopy.count(),
+    prisma.movie.count({ where: { status: EntryStatus.VERIFIED } }),
+    prisma.physicalCopy.count({ where: { status: EntryStatus.VERIFIED } }),
     prisma.person.count()
   ]);
 

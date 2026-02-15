@@ -11,6 +11,9 @@ import genreRoutes from './routes/genreRoutes';
 import csvRoutes from './routes/csvRoutes';
 import physicalCopyRoutes from './routes/physicalCopyRoutes';
 import publicRoutes from './routes/publicRoutes';
+import authRoutes from './routes/authRoutes';
+import adminRoutes from './routes/adminRoutes';
+import userRoutes from './routes/userRoutes';
 
 // Force redeploy with latest schema and routes
 
@@ -51,6 +54,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'UMDB API is running' });
 });
 
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/external', externalRoutes);
 app.use('/api/people', personRoutes);

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
-import { PhysicalFormat } from '@prisma/client';
+import { PhysicalFormat, EntryStatus } from '@prisma/client';
 
 // Get all physical copies for a movie
 export const getMoviePhysicalCopies = asyncHandler(async (req: Request, res: Response) => {
@@ -74,6 +74,9 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
     throw new AppError('Movie not found', 404);
   }
 
+  const submittedById = req.user?.id;
+  const isAdmin = req.user?.role === 'ADMIN';
+
   const copy = await prisma.physicalCopy.create({
     data: {
       movieId,
@@ -90,7 +93,10 @@ export const createPhysicalCopy = asyncHandler(async (req: Request, res: Respons
       purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
       purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
       coverImageUrl,
-      notes
+      notes,
+      status: isAdmin ? EntryStatus.VERIFIED : EntryStatus.PENDING,
+      submittedById: submittedById || null,
+      verifiedAt: isAdmin ? new Date() : null,
     },
     include: {
       movie: {
