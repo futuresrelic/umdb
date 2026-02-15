@@ -14,6 +14,7 @@ import publicRoutes from './routes/publicRoutes';
 import authRoutes from './routes/authRoutes';
 import adminRoutes from './routes/adminRoutes';
 import userRoutes from './routes/userRoutes';
+import cineShelfRoutes from './routes/cineShelfRoutes';
 
 // Force redeploy with latest schema and routes
 
@@ -64,6 +65,7 @@ app.use('/api/genres', genreRoutes);
 app.use('/api/csv', csvRoutes);
 app.use('/api/physical-copies', physicalCopyRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/v1', cineShelfRoutes);
 
 // Error handling
 app.use(errorHandler);
