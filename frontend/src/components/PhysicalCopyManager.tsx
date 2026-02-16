@@ -4,9 +4,13 @@ import api from '../services/api';
 interface PhysicalCopy {
   id: string;
   format: string;
+  editionName?: string;
+  packageType?: string;
   language?: string;
   region?: string;
+  country?: string;
   edition?: string;
+  discCount?: number;
   distributor?: string;
   releaseDate?: string;
   upc?: string;
@@ -67,12 +71,34 @@ function CopyForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Edition</label>
+          <label className="block text-sm font-medium mb-1">Edition Name</label>
+          <input
+            type="text"
+            value={form.editionName || ""}
+            onChange={(e) => set("editionName", e.target.value)}
+            placeholder="e.g. Aladdin VHS (Walt Disney 1993)"
+            className="w-full border rounded px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Package Type</label>
+          <input
+            type="text"
+            value={form.packageType || ""}
+            onChange={(e) => set("packageType", e.target.value)}
+            placeholder="Standard VHS Case, Slipcase, Digipak..."
+            className="w-full border rounded px-3 py-2"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Edition / Cut</label>
           <input
             type="text"
             value={form.edition || ""}
             onChange={(e) => set("edition", e.target.value)}
-            placeholder="Collector Edition, Director Cut..."
+            placeholder="Collector's Edition, Director's Cut..."
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -100,19 +126,26 @@ function CopyForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Condition</label>
-          <select
-            value={form.condition || ""}
-            onChange={(e) => set("condition", e.target.value)}
+          <label className="block text-sm font-medium mb-1">Country of Release</label>
+          <input
+            type="text"
+            value={form.country || ""}
+            onChange={(e) => set("country", e.target.value)}
+            placeholder="US, CA, FR, UK..."
             className="w-full border rounded px-3 py-2"
-          >
-            <option value="">-- Select --</option>
-            <option value="New">New</option>
-            <option value="Like New">Like New</option>
-            <option value="Good">Good</option>
-            <option value="Fair">Fair</option>
-            <option value="Poor">Poor</option>
-          </select>
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Disc / Tape Count</label>
+          <input
+            type="number"
+            min="1"
+            value={form.discCount ?? ""}
+            onChange={(e) => set("discCount", e.target.value ? parseInt(e.target.value) : undefined)}
+            placeholder="1"
+            className="w-full border rounded px-3 py-2"
+          />
         </div>
 
         <div>
@@ -126,12 +159,11 @@ function CopyForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Storage Location</label>
+          <label className="block text-sm font-medium mb-1">Release Date</label>
           <input
-            type="text"
-            value={form.location || ""}
-            onChange={(e) => set("location", e.target.value)}
-            placeholder="Shelf 3, Box A, living room..."
+            type="date"
+            value={form.releaseDate ? String(form.releaseDate).substring(0, 10) : ""}
+            onChange={(e) => set("releaseDate", e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -170,6 +202,33 @@ function CopyForm({
         </div>
 
         <div>
+          <label className="block text-sm font-medium mb-1">Condition</label>
+          <select
+            value={form.condition || ""}
+            onChange={(e) => set("condition", e.target.value)}
+            className="w-full border rounded px-3 py-2"
+          >
+            <option value="">-- Select --</option>
+            <option value="New">New</option>
+            <option value="Like New">Like New</option>
+            <option value="Good">Good</option>
+            <option value="Fair">Fair</option>
+            <option value="Poor">Poor</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Storage Location</label>
+          <input
+            type="text"
+            value={form.location || ""}
+            onChange={(e) => set("location", e.target.value)}
+            placeholder="Shelf 3, Box A, living room..."
+            className="w-full border rounded px-3 py-2"
+          />
+        </div>
+
+        <div>
           <label className="block text-sm font-medium mb-1">Purchase Price ($)</label>
           <input
             type="number"
@@ -177,16 +236,6 @@ function CopyForm({
             min="0"
             value={form.purchasePrice ?? ""}
             onChange={(e) => set("purchasePrice", e.target.value ? parseFloat(e.target.value) : undefined)}
-            className="w-full border rounded px-3 py-2"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Release Date</label>
-          <input
-            type="date"
-            value={form.releaseDate ? String(form.releaseDate).substring(0, 10) : ""}
-            onChange={(e) => set("releaseDate", e.target.value)}
             className="w-full border rounded px-3 py-2"
           />
         </div>
@@ -275,9 +324,7 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
       setShowAddForm(false);
       loadCopies();
     } catch (error: any) {
-      const msg = error.response && error.response.data && error.response.data.message
-        ? error.response.data.message
-        : error.message;
+      const msg = error.response?.data?.message || error.message;
       alert("Failed to add: " + msg);
     } finally {
       setSaving(false);
@@ -291,9 +338,7 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
       setEditingId(null);
       loadCopies();
     } catch (error: any) {
-      const msg = error.response && error.response.data && error.response.data.message
-        ? error.response.data.message
-        : error.message;
+      const msg = error.response?.data?.message || error.message;
       alert("Failed to update: " + msg);
     } finally {
       setSaving(false);
@@ -341,12 +386,14 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
       ) : copies.length === 0 && !showAddForm ? (
         <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
           <p className="text-gray-500 mb-3">No physical copies yet</p>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
-          >
-            + Add Your First Copy
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition text-sm"
+            >
+              + Add Your First Copy
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -385,6 +432,11 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
                             {copy.language}
                           </span>
                         )}
+                        {copy.country && (
+                          <span className="text-sm bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
+                            {copy.country}
+                          </span>
+                        )}
                         {copy.edition && (
                           <span className="text-sm text-gray-600">• {copy.edition}</span>
                         )}
@@ -420,9 +472,14 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
                       )}
                     </div>
 
+                    {copy.editionName && (
+                      <div className="text-sm font-medium text-gray-800 mb-1">{copy.editionName}</div>
+                    )}
+
                     <div className="grid md:grid-cols-2 gap-1 text-sm text-gray-700">
+                      {copy.packageType && <div><span className="font-medium">Package:</span> {copy.packageType}</div>}
+                      {copy.discCount != null && <div><span className="font-medium">Discs/Tapes:</span> {copy.discCount}</div>}
                       {copy.distributor && <div><span className="font-medium">Distributor:</span> {copy.distributor}</div>}
-                      {copy.language && <div><span className="font-medium">Language:</span> {copy.language}</div>}
                       {copy.location && <div><span className="font-medium">Location:</span> {copy.location}</div>}
                       {copy.upc && <div><span className="font-medium">UPC:</span> {copy.upc}</div>}
                       {copy.ean && <div><span className="font-medium">EAN:</span> {copy.ean}</div>}
