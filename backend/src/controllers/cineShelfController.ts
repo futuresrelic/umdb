@@ -549,8 +549,12 @@ function resolveFormat(rawFormat: string): string {
 export const createEdition = asyncHandler(async (req: Request, res: Response) => {
   const {
     movie_id,      // umdb-{id}
-    tmdb_id,       // fallback: look up by TMDB ID
-    imdb_id,       // fallback: look up by IMDb ID
+    tmdb_id,       // fallback: look up / create by TMDB ID
+    imdb_id,       // fallback: look up / create by IMDb ID
+    // Inline movie metadata — used to auto-create movie if not found
+    title, year, overview, runtime, director, genre, rating,
+    media_type, certification, poster_url, backdrop_url,
+    movie_language, movie_country,
     name,
     format,
     package_type,
@@ -580,44 +584,60 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
       }))
     : null;
 
-  // Resolve movie — try movie_id, then tmdb_id, then imdb_id
-  let movieId: string | null = null;
+  // Resolve movie — try movie_id, then tmdb_id, then imdb_id.
+  // If not found AND title is provided, auto-create it.
+  let movieRow: any = null;
 
   if (movie_id) {
-    movieId = fromUmdbId(movie_id);
-  } else if (tmdb_id) {
-    const match = await prisma.externalMatch.findFirst({
-      where: { externalId: String(tmdb_id), source: 'TMDB' },
-      select: { movieId: true },
+    movieRow = await prisma.movie.findUnique({
+      where: { id: fromUmdbId(movie_id) },
+      select: { id: true, title: true, year: true, posterUrl: true },
     });
-    if (match) movieId = match.movieId;
-  } else if (imdb_id) {
-    const match = await prisma.externalMatch.findFirst({
-      where: { externalId: String(imdb_id), source: 'IMDB' },
-      select: { movieId: true },
-    });
-    if (match) movieId = match.movieId;
+  } else if (tmdb_id || imdb_id) {
+    if (tmdb_id) {
+      const match = await prisma.externalMatch.findFirst({
+        where: { externalId: String(tmdb_id), source: 'TMDB' },
+        include: { movie: { select: { id: true, title: true, year: true, posterUrl: true } } },
+      });
+      if (match) movieRow = match.movie;
+    }
+    if (!movieRow && imdb_id) {
+      const match = await prisma.externalMatch.findFirst({
+        where: { externalId: String(imdb_id), source: 'IMDB' },
+        include: { movie: { select: { id: true, title: true, year: true, posterUrl: true } } },
+      });
+      if (match) movieRow = match.movie;
+    }
+    // Auto-create if we have a title and still no match
+    if (!movieRow && title) {
+      const { movie: created } = await findOrCreateMovie({
+        title, year, overview, runtime, director, genre, rating,
+        media_type, certification, poster_url, backdrop_url,
+        tmdb_id, imdb_id,
+        language: movie_language ?? null,
+        country: movie_country ?? null,
+      });
+      movieRow = { id: created.id, title: created.title, year: created.year, posterUrl: created.posterUrl };
+    }
   }
 
-  if (!movieId) {
+  if (!movieRow) {
     throw new AppError(
-      'Could not resolve movie. Provide movie_id (umdb-{id}), tmdb_id, or imdb_id that exists in UMDB.',
+      'Could not resolve movie. Provide movie_id (umdb-{id}), tmdb_id, or imdb_id. ' +
+      'To auto-create, also include title in the payload.',
       422
     );
   }
 
-  const movie = await prisma.movie.findUnique({
-    where: { id: movieId, status: EntryStatus.VERIFIED },
-    select: { id: true, title: true, year: true, posterUrl: true },
-  });
-  if (!movie) throw new AppError('Movie not found or not yet verified in UMDB', 404);
+  const movie = movieRow;
+  const resolvedMovieId: string = movie.id;
 
   // Deduplicate by barcode if provided
   const barcodeValue = upc || barcode || ean || null;
   if (barcodeValue) {
     const existing = await prisma.physicalCopy.findFirst({
       where: {
-        movieId,
+        movieId: resolvedMovieId,
         OR: [
           { upc: barcodeValue },
           { ean: barcodeValue },
@@ -637,7 +657,7 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
 
   const copy = await prisma.physicalCopy.create({
     data: {
-      movieId,
+      movieId: resolvedMovieId,
       format: resolvedFormat as any,
       editionName: name || null,
       packageType: package_type || null,
@@ -744,4 +764,159 @@ export const updateEdition = asyncHandler(async (req: Request, res: Response) =>
   });
 
   res.json(formatRelease(updated, existing.movie));
+});
+
+// ─── Movie creation (CineShelf auto-create) ───────────────────────────────────
+
+const MEDIA_TYPE_MAP: Record<string, MediaType> = {
+  movie: MediaType.MOVIE,
+  tv: MediaType.TV_SHOW,
+  tv_show: MediaType.TV_SHOW,
+  music: MediaType.MUSIC_ALBUM,
+};
+
+/**
+ * Find an existing UMDB movie by tmdb_id or imdb_id, or create it from the
+ * provided metadata. Returns the movie row and whether it was newly created.
+ */
+async function findOrCreateMovie(payload: {
+  title: string;
+  year?: number | null;
+  overview?: string | null;
+  runtime?: number | null;
+  director?: string | null;
+  genre?: string | null;
+  rating?: number | null;
+  media_type?: string | null;
+  certification?: string | null;
+  poster_url?: string | null;
+  backdrop_url?: string | null;
+  tmdb_id?: string | null;
+  imdb_id?: string | null;
+  language?: string | null;
+  country?: string | null;
+}): Promise<{ movie: any; created: boolean }> {
+  // 1. Try to find by tmdb_id
+  if (payload.tmdb_id) {
+    const match = await prisma.externalMatch.findFirst({
+      where: { externalId: String(payload.tmdb_id), source: 'TMDB' },
+      include: { movie: true },
+    });
+    if (match) return { movie: match.movie, created: false };
+  }
+
+  // 2. Try to find by imdb_id
+  if (payload.imdb_id) {
+    const match = await prisma.externalMatch.findFirst({
+      where: { externalId: String(payload.imdb_id), source: 'IMDB' },
+      include: { movie: true },
+    });
+    if (match) return { movie: match.movie, created: false };
+  }
+
+  // 3. Create the movie
+  const resolvedMediaType = MEDIA_TYPE_MAP[(payload.media_type || 'movie').toLowerCase()] ?? MediaType.MOVIE;
+
+  const movie = await prisma.movie.create({
+    data: {
+      title: payload.title,
+      year: payload.year ?? null,
+      plot: payload.overview ?? null,
+      runtime: payload.runtime ?? null,
+      rating: payload.rating ?? null,
+      language: payload.language ?? null,
+      country: payload.country ?? null,
+      posterUrl: payload.poster_url ?? null,
+      backdropUrl: payload.backdrop_url ?? null,
+      mediaType: resolvedMediaType,
+      sourceType: 'HYBRID',
+      // API-submitted movies from a trusted source go straight to VERIFIED
+      status: EntryStatus.VERIFIED,
+    },
+  });
+
+  // Create external ID links
+  const externalMatchData: any[] = [];
+  if (payload.tmdb_id) {
+    externalMatchData.push({ movieId: movie.id, source: 'TMDB', externalId: String(payload.tmdb_id) });
+  }
+  if (payload.imdb_id) {
+    externalMatchData.push({ movieId: movie.id, source: 'IMDB', externalId: String(payload.imdb_id) });
+  }
+  if (externalMatchData.length > 0) {
+    await prisma.externalMatch.createMany({ data: externalMatchData });
+  }
+
+  // Create director person + link if provided
+  if (payload.director) {
+    const directorName = payload.director.trim();
+    const person = await prisma.person.upsert({
+      where: { imdbId: `umdb-dir-${directorName.toLowerCase().replace(/\s+/g, '-')}` },
+      update: {},
+      create: {
+        name: directorName,
+        imdbId: `umdb-dir-${directorName.toLowerCase().replace(/\s+/g, '-')}`,
+      },
+    });
+    await prisma.moviePerson.create({
+      data: { movieId: movie.id, personId: person.id, role: 'DIRECTOR', order: 0 },
+    });
+  }
+
+  // Create genre links if provided (comma-separated string)
+  if (payload.genre) {
+    const genreNames = payload.genre.split(',').map((g: string) => g.trim()).filter(Boolean);
+    for (const name of genreNames) {
+      const genre = await prisma.genre.upsert({
+        where: { name },
+        update: {},
+        create: { name },
+      });
+      await prisma.movieGenre.upsert({
+        where: { movieId_genreId: { movieId: movie.id, genreId: genre.id } },
+        update: {},
+        create: { movieId: movie.id, genreId: genre.id },
+      });
+    }
+  }
+
+  return { movie, created: true };
+}
+
+// POST /v1/movies — CineShelf creates (or finds) a movie in UMDB
+// Idempotent: returns existing movie if tmdb_id or imdb_id already known
+export const createMovieCineShelf = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    title, year, overview, runtime, director, genre, rating,
+    media_type, certification, poster_url, backdrop_url,
+    tmdb_id, imdb_id, language, country,
+  } = req.body;
+
+  if (!title) throw new AppError('title is required', 400);
+
+  const { movie, created } = await findOrCreateMovie({
+    title, year, overview, runtime, director, genre, rating,
+    media_type, certification, poster_url, backdrop_url,
+    tmdb_id, imdb_id, language, country,
+  });
+
+  const status = created ? 201 : 200;
+
+  // Re-fetch with relations for full response
+  const full = await prisma.movie.findUnique({
+    where: { id: movie.id },
+    include: {
+      movieGenres: { include: { genre: { select: { name: true, tmdbId: true } } } },
+      moviePeople: {
+        include: { person: { select: { name: true, photoUrl: true } } },
+        orderBy: [{ role: 'asc' }, { order: 'asc' }],
+      },
+      externalMatches: { select: { source: true, externalId: true } },
+    },
+  });
+
+  res.status(status).json({
+    created,
+    movie: formatMovieDetails(full, []),
+  });
 });

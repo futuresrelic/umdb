@@ -15,6 +15,7 @@ import {
   getMovieEditions,
   getEdition,
   updateEdition,
+  createMovieCineShelf,
 } from '../controllers/cineShelfController';
 
 const router = Router();
@@ -22,6 +23,9 @@ const router = Router();
 // Optional API key auth on all v1 routes
 // (open if UMDB_API_KEY env var is not set)
 router.use(apiKeyAuth);
+
+// Movies — create or find (idempotent by tmdb_id/imdb_id)
+router.post('/movies', requireApiKey, createMovieCineShelf);
 
 // Search
 router.get('/search/multi', searchMulti);
