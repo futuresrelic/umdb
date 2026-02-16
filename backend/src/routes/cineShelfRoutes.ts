@@ -39,10 +39,11 @@ router.get('/tv/:id', getTVShow);
 // External ID lookup
 router.get('/find/:externalId', findByExternalId);
 
-// Physical releases (legacy path)
+// Physical releases — GET (legacy path) + POST alias for /editions
 router.get('/releases/:releaseId', getRelease);
+router.post('/releases', requireApiKey, createEdition);   // alias: CineShelf posts here
 
-// Editions — CineShelf write API
+// Editions — canonical write API
 // GET is open; POST/PUT require a valid API key
 router.get('/movie/:id/editions', getMovieEditions);
 router.get('/editions/:id', getEdition);

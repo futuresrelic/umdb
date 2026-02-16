@@ -545,11 +545,12 @@ function resolveFormat(rawFormat: string): string {
   return FORMAT_INBOUND[rawFormat.toLowerCase()] || rawFormat.toUpperCase().replace(/[- ]/g, '_');
 }
 
-// POST /v1/editions — CineShelf pushes a new edition to UMDB
+// POST /v1/editions (and /v1/releases alias) — CineShelf pushes a new edition to UMDB
 export const createEdition = asyncHandler(async (req: Request, res: Response) => {
   const {
     movie_id,      // umdb-{id}
     tmdb_id,       // fallback: look up by TMDB ID
+    imdb_id,       // fallback: look up by IMDb ID
     name,
     format,
     package_type,
@@ -564,12 +565,22 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
     language,
     notes,
     cover_image,
-    components,    // array of { component_type, component_name, description? }
+    components,    // array of { component_type/type, component_name/name, description?, position? }
   } = req.body;
 
   if (!format) throw new AppError('format is required', 400);
 
-  // Resolve movie
+  // Normalize components: accept both { type, name } and { component_type, component_name }
+  const normalizedComponents = Array.isArray(components)
+    ? components.map((c: any) => ({
+        component_type: c.component_type || c.type || 'other',
+        component_name: c.component_name || c.name || '',
+        ...(c.description && { description: c.description }),
+        ...(c.position !== undefined && { position: c.position }),
+      }))
+    : null;
+
+  // Resolve movie — try movie_id, then tmdb_id, then imdb_id
   let movieId: string | null = null;
 
   if (movie_id) {
@@ -580,11 +591,17 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
       select: { movieId: true },
     });
     if (match) movieId = match.movieId;
+  } else if (imdb_id) {
+    const match = await prisma.externalMatch.findFirst({
+      where: { externalId: String(imdb_id), source: 'IMDB' },
+      select: { movieId: true },
+    });
+    if (match) movieId = match.movieId;
   }
 
   if (!movieId) {
     throw new AppError(
-      'Could not resolve movie. Provide movie_id (umdb-{id}) or a tmdb_id that exists in UMDB.',
+      'Could not resolve movie. Provide movie_id (umdb-{id}), tmdb_id, or imdb_id that exists in UMDB.',
       422
     );
   }
@@ -634,7 +651,7 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
       releaseDate: release_date ? new Date(release_date) : null,
       notes: notes || null,
       coverImageUrl: cover_image || null,
-      components: Array.isArray(components) ? components : undefined,
+      components: normalizedComponents ?? undefined,
       // API-submitted editions go straight to VERIFIED (trusted source)
       status: EntryStatus.VERIFIED,
     },
@@ -715,7 +732,14 @@ export const updateEdition = asyncHandler(async (req: Request, res: Response) =>
       ...(release_date !== undefined && { releaseDate: release_date ? new Date(release_date) : null }),
       ...(notes !== undefined && { notes: notes || null }),
       ...(cover_image !== undefined && { coverImageUrl: cover_image || null }),
-      ...(Array.isArray(components) && { components }),
+      ...(Array.isArray(components) && {
+        components: components.map((c: any) => ({
+          component_type: c.component_type || c.type || 'other',
+          component_name: c.component_name || c.name || '',
+          ...(c.description && { description: c.description }),
+          ...(c.position !== undefined && { position: c.position }),
+        })),
+      }),
     },
   });
 
