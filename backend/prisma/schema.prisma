@@ -203,9 +203,14 @@ model PhysicalCopy {
 
   // Format details
   format      PhysicalFormat
+  editionName String?  // Full human-readable edition name, e.g. "Blood Feast VHS (Something Weird Video 1971)"
+  packageType String?  // Standard VHS Case, Slipcase, Digipak, etc.
   language    String?  // Language(s) of this release, e.g. "French", "Bilingual FR/EN"
   region      String?  // DVD region, Blu-ray region, etc.
+  country     String?  // Release country, e.g. "US", "UK"
   edition     String?  // Collector's Edition, Director's Cut, etc.
+  discCount   Int?     // Number of discs/tapes in the set
+  components  Json?    // Array of { component_type, component_name, description }
 
   // Distribution details
   distributor String?

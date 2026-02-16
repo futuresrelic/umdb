@@ -134,52 +134,39 @@ const FORMAT_DISPLAY: Record<string, string> = {
   LASERDISC: 'LaserDisc',
 };
 
+function deriveComponents(copy: any, displayFormat: string): any[] {
+  if (copy.format === 'LASERDISC' || ['DVD', 'BLU_RAY', 'BLU_RAY_4K', 'HD_DVD', 'CD', 'MINI_DISC'].includes(copy.format)) {
+    return [{ id: `comp-${copy.id}-1`, component_type: 'disc', component_name: `${displayFormat} Disc` }];
+  }
+  if (['VHS', 'BETAMAX', 'CASSETTE', 'EIGHT_TRACK'].includes(copy.format)) {
+    return [{ id: `comp-${copy.id}-1`, component_type: 'tape', component_name: `${displayFormat} Tape` }];
+  }
+  return [{ id: `comp-${copy.id}-1`, component_type: 'other', component_name: displayFormat }];
+}
+
 function formatRelease(copy: any, movie?: any) {
   const displayFormat = FORMAT_DISPLAY[copy.format] || copy.format;
 
-  // Derive components from format
-  const components: any[] = [];
-  if (['VHS', 'BETAMAX', 'CASSETTE', 'EIGHT_TRACK'].includes(copy.format)) {
-    components.push({
-      id: `comp-${copy.id}-1`,
-      component_type: 'tape',
-      component_name: `${displayFormat} Tape`,
-    });
-  } else if (['DVD', 'BLU_RAY', 'BLU_RAY_4K', 'HD_DVD', 'CD', 'MINI_DISC'].includes(copy.format)) {
-    components.push({
-      id: `comp-${copy.id}-1`,
-      component_type: 'disc',
-      component_name: `${displayFormat} Disc`,
-    });
-  } else if (copy.format === 'LASERDISC') {
-    components.push({
-      id: `comp-${copy.id}-1`,
-      component_type: 'disc',
-      component_name: 'LaserDisc',
-    });
-  } else {
-    components.push({
-      id: `comp-${copy.id}-1`,
-      component_type: 'other',
-      component_name: displayFormat,
-    });
-  }
+  // Use stored components if present, otherwise derive from format
+  const storedComponents = Array.isArray(copy.components) ? copy.components : null;
+  const components = storedComponents || deriveComponents(copy, displayFormat);
 
-  const nameParts = [
+  const name = copy.editionName || [
     movie?.title,
     copy.edition,
     displayFormat,
     copy.distributor ? `(${copy.distributor})` : null,
-  ].filter(Boolean);
+  ].filter(Boolean).join(' ');
 
   const result: any = {
     id: `rel-${copy.id}`,
     movie_id: movie ? toUmdbId(movie.id) : null,
-    name: nameParts.join(' '),
+    name,
     format: displayFormat,
     language: copy.language || null,
-    package_type: copy.edition || 'Standard',
+    package_type: copy.packageType || copy.edition || 'Standard',
     region: copy.region || null,
+    country: copy.country || null,
     barcode: copy.upc || copy.ean || null,
     upc: copy.upc || null,
     ean: copy.ean || null,
@@ -188,7 +175,7 @@ function formatRelease(copy: any, movie?: any) {
       ? copy.releaseDate.toISOString().split('T')[0]
       : null,
     distributor: copy.distributor || null,
-    disc_count: 1,
+    disc_count: copy.discCount || 1,
     notes: copy.notes || null,
     cover_image: copy.coverImageUrl || null,
     components,
@@ -208,10 +195,29 @@ function formatRelease(copy: any, movie?: any) {
 
 // ─── API key middleware ────────────────────────────────────────────────────────
 
+/** Optional: allows through if UMDB_API_KEY is not configured (open API) */
 export function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   const requiredKey = process.env.UMDB_API_KEY;
-  // If no key configured, API is fully open
   if (!requiredKey) { next(); return; }
+
+  const provided =
+    (req.headers['x-api-key'] as string) ||
+    (req.query.api_key as string);
+
+  if (provided !== requiredKey) {
+    res.status(401).json({ status: 401, error: 'Invalid or missing API key' });
+    return;
+  }
+  next();
+}
+
+/** Required: always demands a valid API key (for write endpoints) */
+export function requireApiKey(req: Request, res: Response, next: NextFunction): void {
+  const requiredKey = process.env.UMDB_API_KEY;
+  if (!requiredKey) {
+    res.status(503).json({ status: 503, error: 'UMDB_API_KEY is not configured on this server' });
+    return;
+  }
 
   const provided =
     (req.headers['x-api-key'] as string) ||
@@ -508,4 +514,210 @@ export const getRelease = asyncHandler(async (req: Request, res: Response) => {
 
   if (!copy) throw new AppError('Release not found', 404);
   res.json(formatRelease(copy, copy.movie));
+});
+
+// ─── Edition endpoints (CineShelf write API) ──────────────────────────────────
+
+// Format map for inbound CineShelf format strings → Prisma enum
+const FORMAT_INBOUND: Record<string, string> = {
+  'vhs': 'VHS',
+  'dvd': 'DVD',
+  'blu-ray': 'BLU_RAY',
+  'blu_ray': 'BLU_RAY',
+  'bluray': 'BLU_RAY',
+  '4k': 'BLU_RAY_4K',
+  '4k uhd': 'BLU_RAY_4K',
+  '4k uhd blu-ray': 'BLU_RAY_4K',
+  'hd dvd': 'HD_DVD',
+  'laserdisc': 'LASERDISC',
+  'laser disc': 'LASERDISC',
+  'betamax': 'BETAMAX',
+  'cd': 'CD',
+  'vinyl': 'VINYL',
+  'cassette': 'CASSETTE',
+  '8-track': 'EIGHT_TRACK',
+  'minidisc': 'MINI_DISC',
+  'digital': 'DIGITAL',
+  'streaming': 'STREAMING',
+};
+
+function resolveFormat(rawFormat: string): string {
+  return FORMAT_INBOUND[rawFormat.toLowerCase()] || rawFormat.toUpperCase().replace(/[- ]/g, '_');
+}
+
+// POST /v1/editions — CineShelf pushes a new edition to UMDB
+export const createEdition = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    movie_id,      // umdb-{id}
+    tmdb_id,       // fallback: look up by TMDB ID
+    name,
+    format,
+    package_type,
+    region,
+    country,
+    barcode,
+    upc,
+    ean,
+    release_date,
+    distributor,
+    disc_count,
+    language,
+    notes,
+    cover_image,
+    components,    // array of { component_type, component_name, description? }
+  } = req.body;
+
+  if (!format) throw new AppError('format is required', 400);
+
+  // Resolve movie
+  let movieId: string | null = null;
+
+  if (movie_id) {
+    movieId = fromUmdbId(movie_id);
+  } else if (tmdb_id) {
+    const match = await prisma.externalMatch.findFirst({
+      where: { externalId: String(tmdb_id), source: 'TMDB' },
+      select: { movieId: true },
+    });
+    if (match) movieId = match.movieId;
+  }
+
+  if (!movieId) {
+    throw new AppError(
+      'Could not resolve movie. Provide movie_id (umdb-{id}) or a tmdb_id that exists in UMDB.',
+      422
+    );
+  }
+
+  const movie = await prisma.movie.findUnique({
+    where: { id: movieId, status: EntryStatus.VERIFIED },
+    select: { id: true, title: true, year: true, posterUrl: true },
+  });
+  if (!movie) throw new AppError('Movie not found or not yet verified in UMDB', 404);
+
+  // Deduplicate by barcode if provided
+  const barcodeValue = upc || barcode || ean || null;
+  if (barcodeValue) {
+    const existing = await prisma.physicalCopy.findFirst({
+      where: {
+        movieId,
+        OR: [
+          { upc: barcodeValue },
+          { ean: barcodeValue },
+        ],
+      },
+    });
+    if (existing) {
+      return res.status(200).json({
+        duplicate: true,
+        message: 'An edition with this barcode already exists for this movie',
+        edition: formatRelease(existing, movie),
+      });
+    }
+  }
+
+  const resolvedFormat = resolveFormat(format);
+
+  const copy = await prisma.physicalCopy.create({
+    data: {
+      movieId,
+      format: resolvedFormat as any,
+      editionName: name || null,
+      packageType: package_type || null,
+      language: language || null,
+      region: region || null,
+      country: country || null,
+      discCount: disc_count ? parseInt(String(disc_count), 10) : null,
+      upc: upc || barcode || null,
+      ean: ean || null,
+      distributor: distributor || null,
+      releaseDate: release_date ? new Date(release_date) : null,
+      notes: notes || null,
+      coverImageUrl: cover_image || null,
+      components: Array.isArray(components) ? components : undefined,
+      // API-submitted editions go straight to VERIFIED (trusted source)
+      status: EntryStatus.VERIFIED,
+    },
+  });
+
+  res.status(201).json({
+    duplicate: false,
+    edition: formatRelease(copy, movie),
+  });
+});
+
+// GET /v1/movie/:id/editions — list all editions for a movie (alias for /releases)
+export const getMovieEditions = asyncHandler(async (req: Request, res: Response) => {
+  const rawId = fromUmdbId(req.params.id);
+
+  const movie = await prisma.movie.findUnique({
+    where: { id: rawId, status: EntryStatus.VERIFIED },
+    select: { id: true, title: true, year: true, posterUrl: true },
+  });
+  if (!movie) throw new AppError('Movie not found', 404);
+
+  const copies = await prisma.physicalCopy.findMany({
+    where: { movieId: rawId, status: EntryStatus.VERIFIED },
+    orderBy: [{ releaseDate: 'asc' }, { createdAt: 'asc' }],
+  });
+
+  res.json({
+    movie_id: toUmdbId(movie.id),
+    results: copies.map(copy => formatRelease(copy, movie)),
+  });
+});
+
+// GET /v1/editions/:id — single edition detail
+export const getEdition = asyncHandler(async (req: Request, res: Response) => {
+  const rawId = req.params.id.replace(/^rel-/, '');
+
+  const copy = await prisma.physicalCopy.findUnique({
+    where: { id: rawId, status: EntryStatus.VERIFIED },
+    include: {
+      movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+    },
+  });
+  if (!copy) throw new AppError('Edition not found', 404);
+  res.json(formatRelease(copy, copy.movie));
+});
+
+// PUT /v1/editions/:id — update an edition (requires API key)
+export const updateEdition = asyncHandler(async (req: Request, res: Response) => {
+  const rawId = req.params.id.replace(/^rel-/, '');
+
+  const existing = await prisma.physicalCopy.findUnique({
+    where: { id: rawId, status: EntryStatus.VERIFIED },
+    include: {
+      movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+    },
+  });
+  if (!existing) throw new AppError('Edition not found', 404);
+
+  const {
+    name, format, package_type, region, country, barcode, upc, ean,
+    release_date, distributor, disc_count, language, notes, cover_image, components,
+  } = req.body;
+
+  const updated = await prisma.physicalCopy.update({
+    where: { id: rawId },
+    data: {
+      ...(name !== undefined && { editionName: name || null }),
+      ...(format !== undefined && { format: resolveFormat(format) as any }),
+      ...(package_type !== undefined && { packageType: package_type || null }),
+      ...(language !== undefined && { language: language || null }),
+      ...(region !== undefined && { region: region || null }),
+      ...(country !== undefined && { country: country || null }),
+      ...(disc_count !== undefined && { discCount: disc_count ? parseInt(String(disc_count), 10) : null }),
+      ...(upc !== undefined && { upc: upc || null }),
+      ...(barcode !== undefined && !upc && { upc: barcode || null }),
+      ...(ean !== undefined && { ean: ean || null }),
+      ...(distributor !== undefined && { distributor: distributor || null }),
+      ...(release_date !== undefined && { releaseDate: release_date ? new Date(release_date) : null }),
+      ...(notes !== undefined && { notes: notes || null }),
+      ...(cover_image !== undefined && { coverImageUrl: cover_image || null }),
+      ...(Array.isArray(components) && { components }),
+    },
+  });
+
+  res.json(formatRelease(updated, existing.movie));
 });

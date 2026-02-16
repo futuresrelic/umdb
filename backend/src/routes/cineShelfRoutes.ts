@@ -10,6 +10,11 @@ import {
   findByExternalId,
   getRelease,
   apiKeyAuth,
+  requireApiKey,
+  createEdition,
+  getMovieEditions,
+  getEdition,
+  updateEdition,
 } from '../controllers/cineShelfController';
 
 const router = Router();
@@ -34,7 +39,14 @@ router.get('/tv/:id', getTVShow);
 // External ID lookup
 router.get('/find/:externalId', findByExternalId);
 
-// Physical releases
+// Physical releases (legacy path)
 router.get('/releases/:releaseId', getRelease);
+
+// Editions — CineShelf write API
+// GET is open; POST/PUT require a valid API key
+router.get('/movie/:id/editions', getMovieEditions);
+router.get('/editions/:id', getEdition);
+router.post('/editions', requireApiKey, createEdition);
+router.put('/editions/:id', requireApiKey, updateEdition);
 
 export default router;
