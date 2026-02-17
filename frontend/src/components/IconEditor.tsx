@@ -265,7 +265,7 @@ export default function IconEditor() {
 
   // Load existing icons on mount
   useEffect(() => {
-    api.get('/api/icons/settings/all')
+    api.get('/icons/settings/all')
       .then(r => setCurrentIcons(r.data))
       .catch(() => {/* not critical */});
   }, []);
@@ -300,12 +300,13 @@ export default function IconEditor() {
         const canvas = renderIcon(img, adj, bg, crop, padding, size);
         body[key] = canvas.toDataURL('image/png');
       }
-      await api.put('/api/icons/settings/all', body);
+      await api.put('/icons/settings/all', body);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       // Reload so the nav favicon updates
       const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
-      if (link) link.href = `/api/icons/favicon.png?t=${Date.now()}`;
+      const apiBase = import.meta.env.VITE_API_URL ?? '/api';
+      if (link) link.href = `${apiBase}/icons/favicon.png?t=${Date.now()}`;
     } catch (err: any) {
       setError(err?.response?.data?.error ?? 'Save failed');
     } finally {

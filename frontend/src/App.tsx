@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import HomePage from './pages/HomePage';
@@ -96,6 +97,18 @@ function NavBar() {
 }
 
 function App() {
+  // Point favicon/apple-touch-icon to the admin-configured icons on the backend.
+  // index.html has static fallbacks; this updates them once JS loads.
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_URL ?? '/api';
+    const set = (sel: string, href: string) => {
+      const el = document.querySelector<HTMLLinkElement>(sel);
+      if (el) el.href = href;
+    };
+    set('link[rel="icon"]',             `${apiBase}/icons/favicon.png`);
+    set('link[rel="apple-touch-icon"]', `${apiBase}/icons/apple-touch-icon.png`);
+  }, []);
+
   return (
     <Router>
       <AuthProvider>
