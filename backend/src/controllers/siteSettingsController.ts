@@ -37,6 +37,9 @@ export const serveIcon = async (req: Request, res: Response) => {
     const contentType = filename.endsWith('.ico') ? 'image/x-icon' : mime;
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    // Allow cross-origin image loads (helmet defaults to same-origin, which blocks
+    // the frontend from loading icons when it's on a different Railway service URL)
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.send(buf);
   } catch (err) {
     res.status(500).json({ error: 'Failed to serve icon' });
@@ -86,6 +89,7 @@ export const updateIconSettings = async (req: Request, res: Response) => {
     );
     res.json({ success: true, updated: updates.map(u => u.key) });
   } catch (err) {
+    console.error('[updateIconSettings]', err);
     res.status(500).json({ error: 'Failed to save icons' });
   }
 };

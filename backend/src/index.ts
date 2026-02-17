@@ -49,8 +49,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Icons are large (base64 PNG); images are up to 3 MB each — raise the JSON body limit
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Routes
 app.get('/api/health', (req, res) => {
