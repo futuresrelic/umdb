@@ -292,6 +292,13 @@ model MediaImage {
   @@index([uploadedById])
 }
 
+// Site-wide settings (key-value)
+model SiteSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
 // Enums
 enum ImageType {
   POSTER

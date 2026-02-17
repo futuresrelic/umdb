@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../services/api';
+import IconEditor from '../components/IconEditor';
+
+type AdminTab = 'queue' | 'icons';
 
 interface PendingMovie {
   id: string;
@@ -53,6 +56,7 @@ export default function AdminPage() {
   const [mergeModal, setMergeModal] = useState<{ sourceId: string; sourceTitle: string } | null>(null);
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<AdminTab>('queue');
 
   const loadData = async () => {
     try {
@@ -142,10 +146,36 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
-        <p className="text-gray-600 mt-1">Verify, reject, or merge submitted entries.</p>
       </div>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 mb-8 gap-1">
+        {([
+          { id: 'queue' as AdminTab, label: '📋 Verification Queue' },
+          { id: 'icons' as AdminTab, label: '🎨 App Icons' },
+        ]).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-5 py-2.5 text-sm font-medium rounded-t transition ${
+              activeTab === tab.id
+                ? 'bg-white border border-b-white border-gray-200 -mb-px text-blue-600'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >{tab.label}</button>
+        ))}
+      </div>
+
+      {/* ── App Icons tab ── */}
+      {activeTab === 'icons' && (
+        <div className="bg-white rounded-xl shadow p-6">
+          <IconEditor />
+        </div>
+      )}
+
+      {activeTab === 'queue' && <>
 
       {/* Stats */}
       {stats && (
@@ -286,6 +316,8 @@ export default function AdminPage() {
           </div>
         </section>
       )}
+
+      </>}
 
       {/* Reject Modal */}
       {rejectModal && (
