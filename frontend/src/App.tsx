@@ -12,6 +12,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import MySubmissionsPage from './pages/MySubmissionsPage';
 import AdminPage from './pages/AdminPage';
 import EditMoviePage from './pages/EditMoviePage';
+import DocsPage from './pages/DocsPage';
 
 function NavBar() {
   const { user, loading, login, logout, isAdmin } = useAuth();
@@ -45,6 +46,9 @@ function NavBar() {
                   </Link>
                   <Link to="/my-submissions" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
                     My Submissions
+                  </Link>
+                  <Link to="/docs" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
+                    Docs
                   </Link>
                   {isAdmin && (
                     <Link to="/admin" className="px-3 py-2 rounded-md text-sm font-medium bg-yellow-600 hover:bg-yellow-500 transition">
@@ -111,6 +115,7 @@ function App() {
               <Route path="/my-submissions" element={<MySubmissionsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/edit/:id" element={<EditMoviePage />} />
+              <Route path="/docs" element={<DocsPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
             </Routes>
           </main>

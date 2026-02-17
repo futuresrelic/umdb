@@ -23,6 +23,7 @@ model User {
 
   submittedMovies       Movie[]        @relation("SubmittedMovies")
   submittedPhysicalCopies PhysicalCopy[] @relation("SubmittedPhysicalCopies")
+  uploadedImages        MediaImage[]   @relation("UploadedImages")
 
   @@index([email])
 }
@@ -80,6 +81,7 @@ model Movie {
   movieGenres     MovieGenre[]
   physicalCopies  PhysicalCopy[]
   alternativeTitles AlternativeTitle[]
+  images          MediaImage[]   @relation("MovieImages")
 
   @@index([title])
   @@index([year])
@@ -235,6 +237,8 @@ model PhysicalCopy {
   rejectedAt    DateTime?
   rejectionReason String? @db.Text
 
+  images          MediaImage[]   @relation("PhysicalCopyImages")
+
   @@index([movieId])
   @@index([format])
 }
@@ -256,7 +260,46 @@ model AlternativeTitle {
   @@index([title])
 }
 
+// Media images uploaded by users (cover snaps, alternate posters, etc.)
+model MediaImage {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  movieId        String?
+  movie          Movie?        @relation("MovieImages", fields: [movieId], references: [id], onDelete: Cascade)
+
+  physicalCopyId String?
+  physicalCopy   PhysicalCopy? @relation("PhysicalCopyImages", fields: [physicalCopyId], references: [id], onDelete: Cascade)
+
+  imageType   ImageType @default(SNAPSHOT)
+  altText     String?
+
+  // Binary stored as base64 data URL (e.g. "data:image/jpeg;base64,...")
+  dataUrl     String    @db.Text
+  mimeType    String    @default("image/jpeg")
+  sizeBytes   Int?
+  width       Int?
+  height      Int?
+
+  isPrimary   Boolean   @default(false)
+
+  uploadedById String?
+  uploadedBy   User?    @relation("UploadedImages", fields: [uploadedById], references: [id])
+
+  @@index([movieId])
+  @@index([physicalCopyId])
+  @@index([uploadedById])
+}
+
 // Enums
+enum ImageType {
+  POSTER
+  BACKDROP
+  COVER_PHOTO
+  SNAPSHOT
+}
+
 enum UserRole {
   USER
   ADMIN

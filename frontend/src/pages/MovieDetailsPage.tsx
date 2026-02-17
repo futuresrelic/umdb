@@ -6,6 +6,7 @@ import type { Movie } from '../types';
 import SourceMatchingModal from '../components/SourceMatchingModal';
 import PhysicalCopyManager from '../components/PhysicalCopyManager';
 import SourceDataTabs from '../components/SourceDataTabs';
+import CoverCapture from '../components/CoverCapture';
 
 function MovieDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ function MovieDetailsPage() {
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllCrew, setShowAllCrew] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showPhotos, setShowPhotos] = useState(false);
 
   useEffect(() => {
     if (id) loadMovie(id);
@@ -167,6 +169,14 @@ function MovieDetailsPage() {
                 )}
               </div>
               <div className="flex gap-2 flex-wrap justify-end">
+                {user && (
+                  <button
+                    onClick={() => setShowPhotos(!showPhotos)}
+                    className="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition text-sm"
+                  >
+                    📷 Photos
+                  </button>
+                )}
                 <button
                   onClick={() => setShowMatchingModal(true)}
                   className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition text-sm"
@@ -339,6 +349,19 @@ function MovieDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Cover photos panel */}
+      {showPhotos && user && (
+        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-bold mb-4">Cover Photos</h2>
+          <CoverCapture
+            movieId={movie.id}
+            currentUserId={user.id}
+            isAdmin={!!isAdmin}
+            onPrimaryChange={(url) => setMovie((m) => m ? { ...m, posterUrl: url } : m)}
+          />
+        </div>
+      )}
 
       {id && (
         <SourceMatchingModal
