@@ -311,6 +311,7 @@ export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response)
   }
 
   const results: any[] = [];
+  let detectedAsin: string | null = null;
 
   // Try UPCitemdb.com API first (fast, free)
   try {
@@ -319,6 +320,12 @@ export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response)
     });
     if (upcResponse.data && upcResponse.data.items && upcResponse.data.items.length > 0) {
       const item = upcResponse.data.items[0];
+
+      // Extract ASIN from UPC response if available
+      if (item.asin) {
+        detectedAsin = item.asin;
+      }
+
       results.push({
         source: 'UPC Database',
         confidence: 0.7,
@@ -326,12 +333,20 @@ export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response)
           distributor: item.brand || undefined,
           editionName: item.title || undefined,
           notes: item.description || undefined,
-          coverImageUrl: item.images?.[0] || undefined
+          coverImageUrl: item.images?.[0] || undefined,
+          asin: item.asin || undefined,
+          upc: barcode.length === 12 ? barcode : undefined,
+          ean: barcode.length === 13 ? barcode : undefined
         }
       });
     }
   } catch (upcError) {
     console.log('UPCitemdb lookup failed:', upcError);
+  }
+
+  // Check if the barcode itself is an ASIN (10 alphanumeric characters)
+  if (barcode.length === 10 && /^[A-Z0-9]{10}$/.test(barcode)) {
+    detectedAsin = barcode;
   }
 
   // Get movie data if movieId provided
@@ -342,10 +357,10 @@ export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response)
     });
   }
 
-  // Try web scraping (Amazon, Google Shopping, eBay)
+  // Try web scraping with priority on ASIN-based Amazon lookup
   try {
     const scrapedResults = await scrapeMultipleSources(
-      barcode,
+      detectedAsin || barcode,
       movie?.title || undefined,
       movie?.year || undefined
     );

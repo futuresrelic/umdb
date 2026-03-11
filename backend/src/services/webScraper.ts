@@ -17,14 +17,186 @@ interface ScrapedData {
     format?: string;
     notes?: string;
     coverImageUrl?: string;
+    upc?: string;
+    ean?: string;
+    asin?: string;
   };
 }
 
 /**
+ * Scrapes Amazon using Zyte API (handles anti-bot, proxies, JS rendering)
+ * This is the legitimate way to scrape Amazon at scale
+ */
+async function scrapeAmazonViaZyte(asin: string): Promise<ScrapedData | null> {
+  const ZYTE_API_KEY = process.env.ZYTE_API_KEY || '71cc889ff59c421790ca98153ab87fab';
+
+  if (!ZYTE_API_KEY) {
+    console.log('Zyte API key not configured');
+    return null;
+  }
+
+  try {
+    const url = `https://www.amazon.com/dp/${asin}`;
+
+    // Zyte API request format
+    const response = await axios.post(
+      'https://api.zyte.com/v1/extract',
+      {
+        url,
+        browserHtml: true,
+        javascript: true,
+        product: true, // Enable product extraction
+        productOptions: {
+          extractFrom: 'browserHtml'
+        }
+      },
+      {
+        auth: {
+          username: ZYTE_API_KEY,
+          password: ''
+        },
+        timeout: 30000
+      }
+    );
+
+    const { product, browserHtml } = response.data;
+    const data: ScrapedData['data'] = {};
+
+    // Use Zyte's structured product data if available
+    if (product) {
+      if (product.name) data.editionName = product.name;
+      if (product.brand) {
+        data.studio = product.brand;
+        data.distributor = product.brand;
+      }
+      if (product.mainImage?.url) data.coverImageUrl = product.mainImage.url;
+      if (product.gtin) {
+        // GTIN can be UPC or EAN
+        if (product.gtin.length === 12) data.upc = product.gtin;
+        else if (product.gtin.length === 13) data.ean = product.gtin;
+      }
+      data.asin = asin;
+    }
+
+    // Parse HTML with Cheerio for additional details
+    if (browserHtml) {
+      const $ = cheerio.load(browserHtml);
+
+      // Get title if not from structured data
+      if (!data.editionName) {
+        const title = $('#productTitle').text().trim();
+        if (title) data.editionName = title;
+      }
+
+      // Extract detailed specs from product details
+      $('#detailBullets_feature_div li, #productDetails_detailBullets_sections1 tr, .a-section.content ul li').each((_, el) => {
+        const text = $(el).text();
+
+        // Release date
+        if (text.includes('Release date') || text.includes('Date First Available')) {
+          const dateMatch = text.match(/\b\w+ \d{1,2}, \d{4}\b/);
+          if (dateMatch) data.releaseDate = dateMatch[0];
+        }
+
+        // Studio/Distributor
+        if (text.includes('Studio') || text.includes('Manufacturer')) {
+          const studio = $(el).find('span').last().text().trim();
+          if (studio && !studio.includes(':') && studio.length > 0) {
+            data.studio = studio;
+            data.distributor = studio;
+          }
+        }
+
+        // Region
+        if (text.includes('Region')) {
+          const regionMatch = text.match(/Region ([AB\d\s]+)/i);
+          if (regionMatch) data.region = regionMatch[1].trim();
+        }
+
+        // Number of discs
+        if (text.includes('Number of discs')) {
+          const discMatch = text.match(/(\d+)/);
+          if (discMatch) data.discCount = parseInt(discMatch[1]);
+        }
+
+        // Format detection
+        if (text.includes('Format')) {
+          if (text.includes('4K') || text.includes('Ultra HD')) data.format = 'BLU_RAY_4K';
+          else if (text.includes('Blu-ray')) data.format = 'BLU_RAY';
+          else if (text.includes('DVD')) data.format = 'DVD';
+        }
+
+        // Audio formats
+        if (text.includes('Audio') || text.includes('Sound')) {
+          const audioFormats: string[] = [];
+          if (text.includes('Dolby Atmos')) audioFormats.push('Dolby Atmos');
+          if (text.includes('DTS-HD Master')) audioFormats.push('DTS-HD Master Audio');
+          if (text.includes('DTS-HD')) audioFormats.push('DTS-HD High Resolution');
+          if (text.includes('Dolby TrueHD')) audioFormats.push('Dolby TrueHD');
+          if (text.includes('Dolby Digital Plus')) audioFormats.push('Dolby Digital Plus');
+          if (text.includes('Dolby Digital')) audioFormats.push('Dolby Digital');
+          if (text.includes('DTS')) audioFormats.push('DTS');
+          if (text.includes('THX')) audioFormats.push('THX');
+          if (audioFormats.length > 0) data.audioFormats = audioFormats;
+        }
+
+        // Subtitles
+        if (text.includes('Subtitle')) {
+          const subtitles: string[] = [];
+          if (text.includes('English')) subtitles.push('English');
+          if (text.includes('Spanish')) subtitles.push('Spanish');
+          if (text.includes('French')) subtitles.push('French');
+          if (text.includes('German')) subtitles.push('German');
+          if (text.includes('Italian')) subtitles.push('Italian');
+          if (text.includes('Japanese')) subtitles.push('Japanese');
+          if (text.includes('Portuguese')) subtitles.push('Portuguese');
+          if (subtitles.length > 0) data.subtitles = subtitles;
+        }
+
+        // Video standard
+        if (text.includes('NTSC')) data.videoStandard = 'NTSC';
+        else if (text.includes('PAL')) data.videoStandard = 'PAL';
+      });
+
+      // Extract product description/features
+      const description = $('#feature-bullets').text().trim();
+      if (description && description.length > 0) {
+        data.notes = description.substring(0, 500);
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      return null;
+    }
+
+    return {
+      source: 'Amazon (Zyte)',
+      confidence: 0.9,
+      data
+    };
+
+  } catch (error: any) {
+    if (error.response?.status === 401) {
+      console.error('Zyte API authentication failed - check API key');
+    } else if (error.response?.status === 429) {
+      console.error('Zyte API rate limit exceeded');
+    } else {
+      console.error('Zyte scraping failed:', error.message);
+    }
+    return null;
+  }
+}
+
+/**
  * Scrapes Amazon product page for physical media data
- * Uses User-Agent spoofing to appear as a regular browser
+ * Uses Zyte API if available, falls back to direct scraping (often blocked)
  */
 export async function scrapeAmazon(asin: string): Promise<ScrapedData | null> {
+  // Try Zyte API first (reliable)
+  const zyteResult = await scrapeAmazonViaZyte(asin);
+  if (zyteResult) return zyteResult;
+
+  // Fallback to direct scraping (likely to be blocked)
   try {
     const url = `https://www.amazon.com/dp/${asin}`;
 
@@ -123,13 +295,13 @@ export async function scrapeAmazon(asin: string): Promise<ScrapedData | null> {
     }
 
     return {
-      source: 'Amazon',
-      confidence: 0.8,
+      source: 'Amazon (Direct)',
+      confidence: 0.6,
       data
     };
 
   } catch (error: any) {
-    console.error('Amazon scraping failed:', error.message);
+    console.error('Amazon direct scraping failed:', error.message);
     return null;
   }
 }
