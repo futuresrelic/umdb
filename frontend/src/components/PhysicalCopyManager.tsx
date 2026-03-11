@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 
+interface Movie {
+  id: string;
+  title: string;
+  year: number;
+}
+
 interface PhysicalCopy {
   id: string;
   format: string;
@@ -9,6 +15,7 @@ interface PhysicalCopy {
   packageType?: string;
   language?: string;
   region?: string;
+  videoStandard?: string;
   country?: string;
   edition?: string;
   discCount?: number;
@@ -123,7 +130,8 @@ const PACKAGE_COLORS = [
   'Clear',
   'Frosted',
   'Silver',
-  'Gold'
+  'Gold',
+  'Printed'
 ];
 
 const AUDIO_FORMATS = [
@@ -142,7 +150,7 @@ const AUDIO_FORMATS = [
   'Stereo'
 ];
 
-const REGIONS = [
+const DVD_REGIONS = [
   'Region Free',
   'Region 0',
   'Region 1 (US/CA)',
@@ -153,7 +161,10 @@ const REGIONS = [
   'Region 6 (China)',
   'Region A (Americas/East Asia)',
   'Region B (Europe/Africa/Oceania)',
-  'Region C (Asia)',
+  'Region C (Asia)'
+];
+
+const VIDEO_STANDARDS = [
   'NTSC',
   'PAL',
   'SECAM'
@@ -305,11 +316,13 @@ function CheckboxGroup({
 
 function CopyForm({
   initial,
+  movie,
   onSave,
   onCancel,
   saving
 }: {
   initial: Partial<PhysicalCopy>;
+  movie: Movie | null;
   onSave: (data: Partial<PhysicalCopy>) => void;
   onCancel: () => void;
   saving: boolean;
@@ -320,24 +333,107 @@ function CopyForm({
     audioFormats: initial.audioFormats || [],
     subtitles: initial.subtitles || []
   });
+  const [fetching, setFetching] = useState(false);
+  const [autoEditionName, setAutoEditionName] = useState(true);
 
   const set = (key: keyof PhysicalCopy, val: any) => setForm(f => ({ ...f, [key]: val }));
   const setComponent = (key: 'packageTypes' | 'includedItems' | 'colors', val: string[]) => {
-    setForm(f => ({
-      ...f,
-      components: { ...f.components, [key]: val }
-    }));
+    const newComponents = { ...form.components, [key]: val };
+    setForm(f => ({ ...f, components: newComponents }));
+
+    // Auto-update disc count when Bonus Disc is toggled
+    if (key === 'includedItems') {
+      const hasBonusDisc = val.includes('Bonus Disc');
+      const oldHasBonusDisc = (form.components?.includedItems || []).includes('Bonus Disc');
+
+      if (hasBonusDisc !== oldHasBonusDisc) {
+        const currentCount = form.discCount || 1;
+        setForm(f => ({
+          ...f,
+          components: newComponents,
+          discCount: hasBonusDisc ? currentCount + 1 : Math.max(1, currentCount - 1)
+        }));
+      }
+    }
   };
 
   const isFilmFormat = form.format && FILM_FORMATS.includes(form.format);
 
-  // Calculate disc count based on bonus discs
-  const includedItems = form.components?.includedItems || [];
-  const bonusDiscCount = includedItems.filter(item => item === 'Bonus Disc').length;
-  const suggestedDiscCount = (form.discCount || 1) + bonusDiscCount;
+  // Auto-generate Edition Name: Film Name + Year + Package Type + Edition/Cut + Format
+  const generateEditionName = () => {
+    if (!movie || !autoEditionName) return form.editionName || '';
+
+    const parts: string[] = [];
+
+    // Film Name + Year
+    parts.push(`${movie.title} (${movie.year})`);
+
+    // Edition/Cut
+    if (form.edition && form.edition !== 'Normal') {
+      parts.push(form.edition);
+    }
+
+    // Format
+    if (form.format) {
+      let formatStr = FORMAT_LABELS[form.format] || form.format;
+      if (form.isSuper && isFilmFormat) {
+        formatStr = 'Super ' + formatStr;
+      }
+      parts.push(formatStr);
+    }
+
+    // Package Type (first selected)
+    const packageTypes = form.components?.packageTypes || [];
+    if (packageTypes.length > 0) {
+      parts.push(packageTypes[0]);
+    }
+
+    return parts.join(' - ');
+  };
+
+  const computedEditionName = generateEditionName();
+
+  // Fetch data from barcode
+  const fetchFromBarcode = async () => {
+    const barcode = form.upc || form.ean || form.asin;
+    if (!barcode) {
+      alert('Please enter a UPC, EAN, or ASIN first');
+      return;
+    }
+
+    setFetching(true);
+    try {
+      // Try to fetch from backend API endpoint (to be implemented)
+      const response = await api.get(`/physical-copies/fetch-barcode/${barcode}`);
+      const data = response.data;
+
+      // Merge fetched data with form
+      if (data.audioFormats) set('audioFormats', data.audioFormats);
+      if (data.country) set('country', data.country);
+      if (data.distributor) set('distributor', data.distributor);
+      if (data.releaseDate) set('releaseDate', data.releaseDate);
+      if (data.studio) set('studio', data.studio);
+      if (data.editionPublisher) set('editionPublisher', data.editionPublisher);
+      if (data.discCount) set('discCount', data.discCount);
+      if (data.subtitles) set('subtitles', data.subtitles);
+      if (data.region) set('region', data.region);
+      if (data.videoStandard) set('videoStandard', data.videoStandard);
+
+      alert('Data fetched successfully!');
+    } catch (error: any) {
+      // For now, show a message that this feature is coming soon
+      if (error.response?.status === 404) {
+        alert('Barcode lookup service coming soon!\n\nFor now, please enter the data manually. Future updates will include:\n- Amazon Product API integration\n- DVD database lookups\n- Automated field population');
+      } else {
+        alert('No data found for this barcode. Please enter manually.');
+      }
+    } finally {
+      setFetching(false);
+    }
+  };
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="space-y-4">
+    <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, editionName: autoEditionName ? computedEditionName : form.editionName }); }} className="space-y-4">
       {/* Format Section */}
       <div className="grid md:grid-cols-2 gap-3">
         <div>
@@ -368,18 +464,38 @@ function CopyForm({
             </label>
           </div>
         )}
+      </div>
 
-        <div className={isFilmFormat ? 'md:col-span-2' : ''}>
-          <label className="block text-sm font-medium mb-1">Edition Name</label>
+      {/* Edition Name - Auto-generated */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium">Edition Name</label>
+          <label className="flex items-center gap-1 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoEditionName}
+              onChange={(e) => setAutoEditionName(e.target.checked)}
+              className="rounded"
+            />
+            <span>Auto-generate</span>
+          </label>
+        </div>
+        {autoEditionName ? (
+          <div className="w-full border rounded px-3 py-2 bg-blue-50 text-blue-900 font-medium">
+            {computedEditionName || 'Fill in fields below to auto-generate...'}
+          </div>
+        ) : (
           <input
             type="text"
             value={form.editionName || ""}
             onChange={(e) => set("editionName", e.target.value)}
-            placeholder="e.g. Fight Club DVD (20th Century Fox 1999)"
+            placeholder="e.g. Fight Club (1999) - Collector's Edition - DVD - Steelbook"
             className="w-full border rounded px-3 py-2"
           />
-          <p className="text-xs text-gray-500 mt-1">Full descriptive name for this specific release</p>
-        </div>
+        )}
+        <p className="text-xs text-gray-500 mt-1">
+          Auto-generated from: Film Name + Year + Edition/Cut + Format + Package Type
+        </p>
       </div>
 
       {/* Package Type Section */}
@@ -399,7 +515,7 @@ function CopyForm({
             onChange={(val) => setComponent('includedItems', val)}
           />
           <CheckboxGroup
-            label="Package Colors"
+            label="Package Colors / Finish"
             options={PACKAGE_COLORS}
             selected={form.components?.colors || []}
             onChange={(val) => setComponent('colors', val)}
@@ -424,17 +540,50 @@ function CopyForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Region</label>
+          <label className="block text-sm font-medium mb-1">DVD/Blu-ray Region</label>
           <select
             value={form.region || ""}
             onChange={(e) => set("region", e.target.value)}
             className="w-full border rounded px-3 py-2"
           >
             <option value="">-- Select --</option>
-            {REGIONS.map(r => (
+            {DVD_REGIONS.map(r => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* Video Standard (separate from Region) */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Video Standard</label>
+          <select
+            value={form.videoStandard || ""}
+            onChange={(e) => set("videoStandard", e.target.value)}
+            className="w-full border rounded px-3 py-2"
+          >
+            <option value="">-- Select --</option>
+            {VIDEO_STANDARDS.map(std => (
+              <option key={std} value={std}>{std}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Separate from region lock</p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Disc / Tape Count</label>
+          <input
+            type="number"
+            min="1"
+            value={form.discCount ?? ""}
+            onChange={(e) => set("discCount", e.target.value ? parseInt(e.target.value) : undefined)}
+            placeholder="1"
+            className="w-full border rounded px-3 py-2"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Auto-updates when you toggle "Bonus Disc"
+          </p>
         </div>
       </div>
 
@@ -467,8 +616,8 @@ function CopyForm({
         />
       </div>
 
-      {/* Country and Disc Count */}
-      <div className="grid md:grid-cols-2 gap-3">
+      {/* Country */}
+      <div>
         <MultiSelect
           label="Country/Countries of Release"
           options={COUNTRIES}
@@ -476,23 +625,6 @@ function CopyForm({
           onChange={(vals) => set('country', vals.join(', '))}
           placeholder="Type country code (e.g. US, CA, FR)..."
         />
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Disc / Tape Count</label>
-          <input
-            type="number"
-            min="1"
-            value={form.discCount ?? ""}
-            onChange={(e) => set("discCount", e.target.value ? parseInt(e.target.value) : undefined)}
-            placeholder="1"
-            className="w-full border rounded px-3 py-2"
-          />
-          {bonusDiscCount > 0 && (
-            <p className="text-xs text-blue-600 mt-1">
-              💡 Suggested: {suggestedDiscCount} ({bonusDiscCount} bonus disc{bonusDiscCount > 1 ? 's' : ''} selected)
-            </p>
-          )}
-        </div>
       </div>
 
       {/* Distribution Details */}
@@ -557,67 +689,83 @@ function CopyForm({
         </div>
       </div>
 
-      {/* Barcodes */}
-      <div className="grid md:grid-cols-3 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">UPC / Barcode</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={form.upc || ""}
-              onChange={(e) => set("upc", e.target.value)}
-              placeholder="12-digit barcode"
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              type="button"
-              className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
-              title="Scan barcode (coming soon)"
-            >
-              📷
-            </button>
-          </div>
+      {/* Barcodes with Fetch Button */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium">Barcodes & Identifiers</label>
+          <button
+            type="button"
+            onClick={fetchFromBarcode}
+            disabled={fetching || (!form.upc && !form.ean && !form.asin)}
+            className="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1"
+          >
+            {fetching ? '🔄 Fetching...' : '🔍 Fetch Data from Barcode'}
+          </button>
         </div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">UPC / Barcode</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={form.upc || ""}
+                onChange={(e) => set("upc", e.target.value)}
+                placeholder="12-digit barcode"
+                className="flex-1 border rounded px-3 py-2"
+              />
+              <button
+                type="button"
+                className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
+                title="Scan barcode (coming soon)"
+              >
+                📷
+              </button>
+            </div>
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">EAN</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={form.ean || ""}
-              onChange={(e) => set("ean", e.target.value)}
-              placeholder="European Article Number"
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              type="button"
-              className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
-              title="Scan EAN (coming soon)"
-            >
-              📷
-            </button>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">EAN</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={form.ean || ""}
+                onChange={(e) => set("ean", e.target.value)}
+                placeholder="European Article Number"
+                className="flex-1 border rounded px-3 py-2"
+              />
+              <button
+                type="button"
+                className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
+                title="Scan EAN (coming soon)"
+              >
+                📷
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">ASIN</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={form.asin || ""}
-              onChange={(e) => set("asin", e.target.value)}
-              placeholder="Amazon ASIN"
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              type="button"
-              className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
-              title="Scan ASIN (coming soon)"
-            >
-              📷
-            </button>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">ASIN</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={form.asin || ""}
+                onChange={(e) => set("asin", e.target.value)}
+                placeholder="Amazon ASIN"
+                className="flex-1 border rounded px-3 py-2"
+              />
+              <button
+                type="button"
+                className="px-3 py-2 border rounded hover:bg-gray-50 text-sm"
+                title="Scan ASIN (coming soon)"
+              >
+                📷
+              </button>
+            </div>
           </div>
         </div>
+        <p className="text-xs text-gray-500 mt-1">
+          💡 Enter any barcode above, then click "Fetch Data" to auto-fill fields from external databases
+        </p>
       </div>
 
       {/* Copy Protection */}
@@ -696,6 +844,7 @@ function CopyForm({
 
 function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
   const [copies, setCopies] = useState<PhysicalCopy[]>([]);
+  const [movie, setMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -703,7 +852,17 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
 
   useEffect(() => {
     loadCopies();
+    loadMovie();
   }, [movieId]);
+
+  const loadMovie = async () => {
+    try {
+      const response = await api.get(`/movies/${movieId}`);
+      setMovie({ id: response.data.id, title: response.data.title, year: response.data.year });
+    } catch (error) {
+      console.error("Failed to load movie:", error);
+    }
+  };
 
   const loadCopies = async () => {
     try {
@@ -775,6 +934,7 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
           <h3 className="font-bold mb-3">Add Physical Copy</h3>
           <CopyForm
             initial={{ format: "DVD" }}
+            movie={movie}
             onSave={handleAdd}
             onCancel={() => setShowAddForm(false)}
             saving={saving}
@@ -805,6 +965,7 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
                   <h4 className="font-bold mb-3">Edit Copy</h4>
                   <CopyForm
                     initial={copy}
+                    movie={movie}
                     onSave={(data) => handleEdit(copy.id, data)}
                     onCancel={() => setEditingId(null)}
                     saving={saving}
@@ -844,6 +1005,9 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
                         )}
                         {copy.region && (
                           <span className="text-sm text-gray-500">• {copy.region}</span>
+                        )}
+                        {copy.videoStandard && (
+                          <span className="text-sm text-gray-500">• {copy.videoStandard}</span>
                         )}
                         {copy.copyProtected && (
                           <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">

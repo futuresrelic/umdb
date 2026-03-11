@@ -210,6 +210,7 @@ model PhysicalCopy {
   packageType String?  // Standard VHS Case, Slipcase, Digipak, etc.
   language    String?  // Language(s) of this release, e.g. "French", "Bilingual FR/EN"
   region      String?  // DVD region, Blu-ray region, etc.
+  videoStandard String? // NTSC, PAL, SECAM
   country     String?  // Release country, e.g. "US", "UK"
   edition     String?  // Collector's Edition, Director's Cut, etc.
   discCount   Int?     // Number of discs/tapes in the set
