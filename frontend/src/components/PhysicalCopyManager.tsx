@@ -335,6 +335,8 @@ function CopyForm({
   });
   const [fetching, setFetching] = useState(false);
   const [autoEditionName, setAutoEditionName] = useState(true);
+  const [scrapedResults, setScrapedResults] = useState<any[]>([]);
+  const [showResultsModal, setShowResultsModal] = useState(false);
 
   const set = (key: keyof PhysicalCopy, val: any) => setForm(f => ({ ...f, [key]: val }));
   const setComponent = (key: 'packageTypes' | 'includedItems' | 'colors', val: string[]) => {
@@ -405,6 +407,28 @@ function CopyForm({
     alert(`Auto-filled from "${movie.title}" (${movie.year}).\n\nNote: This only fills basic movie info. For physical media specifics (UPC, distributor, etc.), try:\n1. Enter a barcode and click "Fetch from Barcode"\n2. Manually enter the details from your physical copy`);
   };
 
+  // Apply selected scraped data to form
+  const applyScrapedData = (scrapedData: any) => {
+    let fieldsUpdated = 0;
+    if (scrapedData.distributor) { set('distributor', scrapedData.distributor); fieldsUpdated++; }
+    if (scrapedData.editionName) { set('editionName', scrapedData.editionName); setAutoEditionName(false); fieldsUpdated++; }
+    if (scrapedData.notes && !form.notes) { set('notes', scrapedData.notes); fieldsUpdated++; }
+    if (scrapedData.audioFormats) { set('audioFormats', scrapedData.audioFormats); fieldsUpdated++; }
+    if (scrapedData.country) { set('country', scrapedData.country); fieldsUpdated++; }
+    if (scrapedData.releaseDate) { set('releaseDate', scrapedData.releaseDate); fieldsUpdated++; }
+    if (scrapedData.studio) { set('studio', scrapedData.studio); fieldsUpdated++; }
+    if (scrapedData.editionPublisher) { set('editionPublisher', scrapedData.editionPublisher); fieldsUpdated++; }
+    if (scrapedData.discCount) { set('discCount', scrapedData.discCount); fieldsUpdated++; }
+    if (scrapedData.subtitles) { set('subtitles', scrapedData.subtitles); fieldsUpdated++; }
+    if (scrapedData.region) { set('region', scrapedData.region); fieldsUpdated++; }
+    if (scrapedData.videoStandard) { set('videoStandard', scrapedData.videoStandard); fieldsUpdated++; }
+    if (scrapedData.coverImageUrl && !form.coverImageUrl) { set('coverImageUrl', scrapedData.coverImageUrl); fieldsUpdated++; }
+    if (scrapedData.format && !form.format) { set('format', scrapedData.format); fieldsUpdated++; }
+
+    setShowResultsModal(false);
+    alert(`✅ Applied data! ${fieldsUpdated} field${fieldsUpdated !== 1 ? 's' : ''} updated.\n\nReview the auto-filled data and adjust as needed.`);
+  };
+
   // Fetch data from barcode
   const fetchFromBarcode = async () => {
     const barcode = form.upc || form.ean || form.asin;
@@ -415,33 +439,25 @@ function CopyForm({
 
     setFetching(true);
     try {
-      const response = await api.get(`/physical-copies/fetch-barcode/${barcode}`);
-      const data = response.data;
+      const movieParam = movie ? `?movieId=${movie.id}` : '';
+      const response = await api.get(`/physical-copies/fetch-barcode/${barcode}${movieParam}`);
+      const { results } = response.data;
 
-      // Merge fetched data with form
-      let fieldsUpdated = 0;
-      if (data.distributor) { set('distributor', data.distributor); fieldsUpdated++; }
-      if (data.editionName) { set('editionName', data.editionName); setAutoEditionName(false); fieldsUpdated++; }
-      if (data.notes && !form.notes) { set('notes', data.notes); fieldsUpdated++; }
-      if (data.audioFormats) { set('audioFormats', data.audioFormats); fieldsUpdated++; }
-      if (data.country) { set('country', data.country); fieldsUpdated++; }
-      if (data.releaseDate) { set('releaseDate', data.releaseDate); fieldsUpdated++; }
-      if (data.studio) { set('studio', data.studio); fieldsUpdated++; }
-      if (data.editionPublisher) { set('editionPublisher', data.editionPublisher); fieldsUpdated++; }
-      if (data.discCount) { set('discCount', data.discCount); fieldsUpdated++; }
-      if (data.subtitles) { set('subtitles', data.subtitles); fieldsUpdated++; }
-      if (data.region) { set('region', data.region); fieldsUpdated++; }
-      if (data.videoStandard) { set('videoStandard', data.videoStandard); fieldsUpdated++; }
-
-      alert(`✅ Found data! ${fieldsUpdated} field${fieldsUpdated !== 1 ? 's' : ''} updated.\n\nReview the auto-filled data and adjust as needed.`);
+      if (results && results.length > 0) {
+        // Show modal with all results for user to choose
+        setScrapedResults(results);
+        setShowResultsModal(true);
+      } else {
+        alert('No data found. Please enter manually.');
+      }
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.message;
       if (error.response?.status === 404) {
-        alert(`❌ No data found for barcode "${barcode}".\n\n${errorMsg}\n\n💡 Tips:\n- Try a different barcode (UPC/EAN/ASIN)\n- The free UPC database may not have all products\n- For comprehensive data, Amazon API keys would be needed`);
+        alert(`❌ ${errorMsg}`);
       } else if (error.response?.status === 500) {
-        alert(`⚠️ Barcode lookup failed.\n\n${errorMsg}\n\nThe free API may have rate limits. Wait a moment and try again, or enter data manually.`);
+        alert(`⚠️ Lookup failed.\n\n${errorMsg}\n\nThe scraping service may be temporarily blocked. Try again later or enter data manually.`);
       } else {
-        alert(`❌ Barcode lookup error.\n\n${errorMsg}`);
+        alert(`❌ Error: ${errorMsg}`);
       }
     } finally {
       setFetching(false);
@@ -449,6 +465,7 @@ function CopyForm({
   };
 
   return (
+    <>
     <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, editionName: autoEditionName ? computedEditionName : form.editionName }); }} className="space-y-4">
       {/* Format Section */}
       <div className="grid md:grid-cols-2 gap-3">
@@ -867,6 +884,108 @@ function CopyForm({
         </button>
       </div>
     </form>
+
+    {/* Scraped Results Modal */}
+    {showResultsModal && scrapedResults.length > 0 && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">Found {scrapedResults.length} Result{scrapedResults.length !== 1 ? 's' : ''} 🎉</h3>
+              <button
+                onClick={() => setShowResultsModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 mb-4">
+              Click on a result to apply that data to your form. Review the data and adjust as needed.
+            </p>
+
+            <div className="space-y-3">
+              {scrapedResults.map((result, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => applyScrapedData(result.data)}
+                  className="w-full text-left border rounded-lg p-4 hover:bg-blue-50 hover:border-blue-500 transition"
+                >
+                  <div className="flex items-start gap-4">
+                    {result.data.coverImageUrl && (
+                      <img
+                        src={result.data.coverImageUrl}
+                        alt="Cover"
+                        className="w-20 h-28 object-cover rounded"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-purple-100 text-purple-800">
+                          {result.source}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          Confidence: {Math.round(result.confidence * 100)}%
+                        </span>
+                      </div>
+
+                      {result.data.editionName && (
+                        <div className="font-medium text-gray-900 mb-1">
+                          {result.data.editionName}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                        {result.data.distributor && (
+                          <div><span className="font-medium">Distributor:</span> {result.data.distributor}</div>
+                        )}
+                        {result.data.studio && (
+                          <div><span className="font-medium">Studio:</span> {result.data.studio}</div>
+                        )}
+                        {result.data.releaseDate && (
+                          <div><span className="font-medium">Release:</span> {result.data.releaseDate}</div>
+                        )}
+                        {result.data.format && (
+                          <div><span className="font-medium">Format:</span> {result.data.format}</div>
+                        )}
+                        {result.data.region && (
+                          <div><span className="font-medium">Region:</span> {result.data.region}</div>
+                        )}
+                        {result.data.discCount && (
+                          <div><span className="font-medium">Discs:</span> {result.data.discCount}</div>
+                        )}
+                      </div>
+
+                      {result.data.audioFormats && result.data.audioFormats.length > 0 && (
+                        <div className="mt-2 text-xs text-gray-600">
+                          <span className="font-medium">Audio:</span> {result.data.audioFormats.join(', ')}
+                        </div>
+                      )}
+
+                      {result.data.notes && (
+                        <div className="mt-2 text-xs text-gray-500 line-clamp-2">
+                          {result.data.notes}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => setShowResultsModal(false)}
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Cancel - Enter Manually
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   );
 }
 

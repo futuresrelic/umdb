@@ -3,6 +3,7 @@ import axios from 'axios';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
 import { PhysicalFormat, EntryStatus } from '@prisma/client';
+import { scrapeMultipleSources } from '../services/webScraper';
 
 // Get all physical copies for a movie
 export const getMoviePhysicalCopies = asyncHandler(async (req: Request, res: Response) => {
@@ -303,44 +304,70 @@ export const getAllPhysicalCopies = asyncHandler(async (req: Request, res: Respo
 // Fetch physical copy data from barcode (UPC/EAN/ASIN)
 export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response) => {
   const { barcode } = req.params;
+  const { movieId } = req.query;
 
   if (!barcode) {
     throw new AppError('Barcode is required', 400);
   }
 
+  const results: any[] = [];
+
+  // Try UPCitemdb.com API first (fast, free)
   try {
-    let result: any = {};
-
-    // Try UPCitemdb.com API (free, no key required for basic lookups)
-    try {
-      const upcResponse = await axios.get(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
-      if (upcResponse.data && upcResponse.data.items && upcResponse.data.items.length > 0) {
-        const item = upcResponse.data.items[0];
-
-        // Map UPC data to our fields
-        if (item.brand) result.distributor = item.brand;
-        if (item.title) result.editionName = item.title;
-        if (item.description) result.notes = item.description;
-      }
-    } catch (upcError) {
-      console.log('UPCitemdb lookup failed:', upcError);
+    const upcResponse = await axios.get(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`, {
+      timeout: 5000
+    });
+    if (upcResponse.data && upcResponse.data.items && upcResponse.data.items.length > 0) {
+      const item = upcResponse.data.items[0];
+      results.push({
+        source: 'UPC Database',
+        confidence: 0.7,
+        data: {
+          distributor: item.brand || undefined,
+          editionName: item.title || undefined,
+          notes: item.description || undefined,
+          coverImageUrl: item.images?.[0] || undefined
+        }
+      });
     }
+  } catch (upcError) {
+    console.log('UPCitemdb lookup failed:', upcError);
+  }
 
-    // If we have TMDB API key, try to enrich with movie data
-    if (process.env.TMDB_API_KEY) {
-      // This would require additional logic to map barcode to TMDB
-      // For now, we'll skip this and use manual search instead
-    }
+  // Get movie data if movieId provided
+  let movie = null;
+  if (movieId) {
+    movie = await prisma.movie.findUnique({
+      where: { id: movieId as string }
+    });
+  }
 
-    // If we found any data, return it
-    if (Object.keys(result).length > 0) {
-      res.json(result);
-    } else {
-      throw new AppError('No data found for this barcode. Try searching by name instead.', 404);
-    }
-  } catch (error: any) {
-    if (error instanceof AppError) throw error;
-    throw new AppError('Failed to fetch barcode data. The free API may have rate limits. Try searching by name instead.', 500);
+  // Try web scraping (Amazon, Google Shopping, eBay)
+  try {
+    const scrapedResults = await scrapeMultipleSources(
+      barcode,
+      movie?.title || undefined,
+      movie?.year || undefined
+    );
+    results.push(...scrapedResults);
+  } catch (scrapeError) {
+    console.log('Web scraping failed:', scrapeError);
+  }
+
+  // If we found results, return them all for user to choose
+  if (results.length > 0) {
+    res.json({ results });
+  } else {
+    throw new AppError(
+      `No data found for barcode "${barcode}".\n\n` +
+      `Tried: UPC Database, Amazon, Google Shopping, eBay.\n\n` +
+      `This may happen if:\n` +
+      `- The barcode is incorrect\n` +
+      `- The product is not in online databases\n` +
+      `- Anti-scraping measures blocked access\n\n` +
+      `Try entering the data manually.`,
+      404
+    );
   }
 });
 
