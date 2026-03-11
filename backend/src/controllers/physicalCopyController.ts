@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import axios from 'axios';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
 import { PhysicalFormat, EntryStatus } from '@prisma/client';
@@ -297,4 +298,91 @@ export const getAllPhysicalCopies = asyncHandler(async (req: Request, res: Respo
     limit: limit ? parseInt(limit as string) : 50,
     offset: offset ? parseInt(offset as string) : 0
   });
+});
+
+// Fetch physical copy data from barcode (UPC/EAN/ASIN)
+export const fetchFromBarcode = asyncHandler(async (req: Request, res: Response) => {
+  const { barcode } = req.params;
+
+  if (!barcode) {
+    throw new AppError('Barcode is required', 400);
+  }
+
+  try {
+    let result: any = {};
+
+    // Try UPCitemdb.com API (free, no key required for basic lookups)
+    try {
+      const upcResponse = await axios.get(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
+      if (upcResponse.data && upcResponse.data.items && upcResponse.data.items.length > 0) {
+        const item = upcResponse.data.items[0];
+
+        // Map UPC data to our fields
+        if (item.brand) result.distributor = item.brand;
+        if (item.title) result.editionName = item.title;
+        if (item.description) result.notes = item.description;
+      }
+    } catch (upcError) {
+      console.log('UPCitemdb lookup failed:', upcError);
+    }
+
+    // If we have TMDB API key, try to enrich with movie data
+    if (process.env.TMDB_API_KEY) {
+      // This would require additional logic to map barcode to TMDB
+      // For now, we'll skip this and use manual search instead
+    }
+
+    // If we found any data, return it
+    if (Object.keys(result).length > 0) {
+      res.json(result);
+    } else {
+      throw new AppError('No data found for this barcode. Try searching by name instead.', 404);
+    }
+  } catch (error: any) {
+    if (error instanceof AppError) throw error;
+    throw new AppError('Failed to fetch barcode data. The free API may have rate limits. Try searching by name instead.', 500);
+  }
+});
+
+// Search for physical media by name
+export const searchPhysicalMedia = asyncHandler(async (req: Request, res: Response) => {
+  const { query, movieId } = req.query;
+
+  if (!query || !movieId) {
+    throw new AppError('Query and movieId are required', 400);
+  }
+
+  // Get the movie from our database
+  const movie = await prisma.movie.findUnique({
+    where: { id: movieId as string }
+  });
+
+  if (!movie) {
+    throw new AppError('Movie not found', 404);
+  }
+
+  try {
+    const results: any[] = [];
+
+    // Search Amazon (requires Product Advertising API key)
+    if (process.env.AMAZON_ACCESS_KEY && process.env.AMAZON_SECRET_KEY) {
+      // Amazon Product Advertising API implementation would go here
+      // This requires signing requests with HMAC-SHA256
+      // For now, we'll skip this and recommend manual entry
+    }
+
+    // For now, return a helpful structure based on the movie data
+    // Users can manually fill in the physical media details
+    results.push({
+      source: 'manual',
+      title: `${movie.title} (${movie.year})`,
+      suggestedData: {
+        editionName: `${movie.title} (${movie.year})`
+      }
+    });
+
+    res.json({ results });
+  } catch (error) {
+    throw new AppError('Failed to search for physical media', 500);
+  }
 });

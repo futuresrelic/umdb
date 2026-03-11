@@ -5,11 +5,17 @@ import {
   getMoviePhysicalCopies,
   createPhysicalCopy,
   updatePhysicalCopy,
-  deletePhysicalCopy
+  deletePhysicalCopy,
+  fetchFromBarcode,
+  searchPhysicalMedia
 } from '../controllers/physicalCopyController';
 import { optionalAuth, requireAuth } from '../middleware/auth';
 
 const router = Router();
+
+// Data fetching routes
+router.get('/fetch-barcode/:barcode', optionalAuth, fetchFromBarcode);
+router.get('/search', optionalAuth, searchPhysicalMedia);
 
 // Collection-wide routes
 router.get('/', optionalAuth, getAllPhysicalCopies);

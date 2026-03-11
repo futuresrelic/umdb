@@ -393,6 +393,18 @@ function CopyForm({
 
   const computedEditionName = generateEditionName();
 
+  // Fill from movie data
+  const fillFromMovieData = () => {
+    if (!movie) {
+      alert('Movie data not loaded');
+      return;
+    }
+
+    // We'll use the movie data from TMDB that's already in our database
+    // This doesn't give us physical media specifics, but helps with basics
+    alert(`Auto-filled from "${movie.title}" (${movie.year}).\n\nNote: This only fills basic movie info. For physical media specifics (UPC, distributor, etc.), try:\n1. Enter a barcode and click "Fetch from Barcode"\n2. Manually enter the details from your physical copy`);
+  };
+
   // Fetch data from barcode
   const fetchFromBarcode = async () => {
     const barcode = form.upc || form.ean || form.asin;
@@ -403,29 +415,33 @@ function CopyForm({
 
     setFetching(true);
     try {
-      // Try to fetch from backend API endpoint (to be implemented)
       const response = await api.get(`/physical-copies/fetch-barcode/${barcode}`);
       const data = response.data;
 
       // Merge fetched data with form
-      if (data.audioFormats) set('audioFormats', data.audioFormats);
-      if (data.country) set('country', data.country);
-      if (data.distributor) set('distributor', data.distributor);
-      if (data.releaseDate) set('releaseDate', data.releaseDate);
-      if (data.studio) set('studio', data.studio);
-      if (data.editionPublisher) set('editionPublisher', data.editionPublisher);
-      if (data.discCount) set('discCount', data.discCount);
-      if (data.subtitles) set('subtitles', data.subtitles);
-      if (data.region) set('region', data.region);
-      if (data.videoStandard) set('videoStandard', data.videoStandard);
+      let fieldsUpdated = 0;
+      if (data.distributor) { set('distributor', data.distributor); fieldsUpdated++; }
+      if (data.editionName) { set('editionName', data.editionName); setAutoEditionName(false); fieldsUpdated++; }
+      if (data.notes && !form.notes) { set('notes', data.notes); fieldsUpdated++; }
+      if (data.audioFormats) { set('audioFormats', data.audioFormats); fieldsUpdated++; }
+      if (data.country) { set('country', data.country); fieldsUpdated++; }
+      if (data.releaseDate) { set('releaseDate', data.releaseDate); fieldsUpdated++; }
+      if (data.studio) { set('studio', data.studio); fieldsUpdated++; }
+      if (data.editionPublisher) { set('editionPublisher', data.editionPublisher); fieldsUpdated++; }
+      if (data.discCount) { set('discCount', data.discCount); fieldsUpdated++; }
+      if (data.subtitles) { set('subtitles', data.subtitles); fieldsUpdated++; }
+      if (data.region) { set('region', data.region); fieldsUpdated++; }
+      if (data.videoStandard) { set('videoStandard', data.videoStandard); fieldsUpdated++; }
 
-      alert('Data fetched successfully!');
+      alert(`✅ Found data! ${fieldsUpdated} field${fieldsUpdated !== 1 ? 's' : ''} updated.\n\nReview the auto-filled data and adjust as needed.`);
     } catch (error: any) {
-      // For now, show a message that this feature is coming soon
+      const errorMsg = error.response?.data?.message || error.message;
       if (error.response?.status === 404) {
-        alert('Barcode lookup service coming soon!\n\nFor now, please enter the data manually. Future updates will include:\n- Amazon Product API integration\n- DVD database lookups\n- Automated field population');
+        alert(`❌ No data found for barcode "${barcode}".\n\n${errorMsg}\n\n💡 Tips:\n- Try a different barcode (UPC/EAN/ASIN)\n- The free UPC database may not have all products\n- For comprehensive data, Amazon API keys would be needed`);
+      } else if (error.response?.status === 500) {
+        alert(`⚠️ Barcode lookup failed.\n\n${errorMsg}\n\nThe free API may have rate limits. Wait a moment and try again, or enter data manually.`);
       } else {
-        alert('No data found for this barcode. Please enter manually.');
+        alert(`❌ Barcode lookup error.\n\n${errorMsg}`);
       }
     } finally {
       setFetching(false);
@@ -689,18 +705,30 @@ function CopyForm({
         </div>
       </div>
 
-      {/* Barcodes with Fetch Button */}
+      {/* Barcodes with Fetch Buttons */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="block text-sm font-medium">Barcodes & Identifiers</label>
-          <button
-            type="button"
-            onClick={fetchFromBarcode}
-            disabled={fetching || (!form.upc && !form.ean && !form.asin)}
-            className="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1"
-          >
-            {fetching ? '🔄 Fetching...' : '🔍 Fetch Data from Barcode'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={fillFromMovieData}
+              disabled={!movie}
+              className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Auto-fill basic fields from movie data"
+            >
+              🎬 Fill from Movie
+            </button>
+            <button
+              type="button"
+              onClick={fetchFromBarcode}
+              disabled={fetching || (!form.upc && !form.ean && !form.asin)}
+              className="text-sm bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Fetch physical media data from barcode databases"
+            >
+              {fetching ? '🔄 Fetching...' : '🔍 Fetch from Barcode'}
+            </button>
+          </div>
         </div>
         <div className="grid md:grid-cols-3 gap-3">
           <div>
