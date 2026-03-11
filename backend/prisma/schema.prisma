@@ -205,6 +205,7 @@ model PhysicalCopy {
 
   // Format details
   format      PhysicalFormat
+  isSuper     Boolean? // For film formats: Super 8, Super 16, etc.
   editionName String?  // Full human-readable edition name, e.g. "Blood Feast VHS (Something Weird Video 1971)"
   packageType String?  // Standard VHS Case, Slipcase, Digipak, etc.
   language    String?  // Language(s) of this release, e.g. "French", "Bilingual FR/EN"
@@ -212,7 +213,17 @@ model PhysicalCopy {
   country     String?  // Release country, e.g. "US", "UK"
   edition     String?  // Collector's Edition, Director's Cut, etc.
   discCount   Int?     // Number of discs/tapes in the set
-  components  Json?    // Array of { component_type, component_name, description }
+  components  Json?    // { packageTypes: [], includedItems: [], colors: [] }
+
+  // Audio & Video details
+  audioFormats String[] @default([]) // THX, DTS, Dolby Atmos, etc.
+  subtitles    String[] @default([]) // Subtitle languages
+  copyProtected Boolean? // Copy protection flag
+
+  // Content details
+  bonusContent String? @db.Text // Description of special/bonus disc content
+  studio       String? // Studio/Production company
+  editionPublisher String? // Edition publisher (different from distributor)
 
   // Distribution details
   distributor String?
@@ -221,7 +232,7 @@ model PhysicalCopy {
   ean         String?  // European Article Number
   asin        String?  // Amazon Standard Identification Number
 
-  // Condition and ownership
+  // Condition and ownership (deprecated - moved to CineShelf)
   condition   String?  // New, Like New, Good, Fair, etc.
   location    String?  // Where it's stored
   purchaseDate DateTime?
@@ -377,5 +388,9 @@ enum PhysicalFormat {
   CASSETTE
   EIGHT_TRACK
   MINI_DISC
+  FILM_8MM
+  FILM_16MM
+  FILM_35MM
+  FILM_70MM
   OTHER
 }
