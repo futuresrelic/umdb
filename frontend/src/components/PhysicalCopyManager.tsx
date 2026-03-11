@@ -402,9 +402,35 @@ function CopyForm({
       return;
     }
 
-    // We'll use the movie data from TMDB that's already in our database
-    // This doesn't give us physical media specifics, but helps with basics
-    alert(`Auto-filled from "${movie.title}" (${movie.year}).\n\nNote: This only fills basic movie info. For physical media specifics (UPC, distributor, etc.), try:\n1. Enter a barcode and click "Fetch from Barcode"\n2. Manually enter the details from your physical copy`);
+    // Actually fill fields instead of just showing an alert
+    let fieldsUpdated = 0;
+
+    // Use TMDB poster as cover if available
+    const tmdbPosterUrl = `https://image.tmdb.org/t/p/w500${(movie as any).posterPath}`;
+    if (!form.coverImageUrl && (movie as any).posterPath) {
+      set('coverImageUrl', tmdbPosterUrl);
+      fieldsUpdated++;
+    }
+
+    alert(`✅ Pre-filled ${fieldsUpdated} field${fieldsUpdated !== 1 ? 's' : ''} from "${movie.title}" (${movie.year}).\n\nNow enter physical media details from your copy:\n• Format, Package Type, Region\n• Distributor, Release Date\n• Audio/Video specs\n\nOr try the helper links below the barcodes!`);
+  };
+
+  // Open helper links for manual lookup
+  const openLookupHelpers = () => {
+    const barcode = form.upc || form.ean || form.asin;
+    const movieQuery = movie ? `${movie.title} ${movie.year}` : '';
+
+    if (barcode) {
+      // Open Amazon, Google, eBay with barcode
+      window.open(`https://www.amazon.com/s?k=${barcode}`, '_blank');
+      window.open(`https://www.google.com/search?q=${barcode}+DVD+Blu-ray`, '_blank');
+    } else if (movieQuery) {
+      // Open with movie title
+      window.open(`https://www.amazon.com/s?k=${encodeURIComponent(movieQuery + ' DVD Blu-ray')}`, '_blank');
+      window.open(`https://www.google.com/search?q=${encodeURIComponent(movieQuery + ' DVD Blu-ray')}`, '_blank');
+    } else {
+      alert('Enter a barcode or select a movie first!');
+    }
   };
 
   // Apply selected scraped data to form
@@ -808,9 +834,21 @@ function CopyForm({
             </div>
           </div>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
-          💡 Enter any barcode above, then click "Fetch Data" to auto-fill fields from external databases
-        </p>
+        <div className="mt-2 p-3 bg-blue-50 rounded border border-blue-200">
+          <p className="text-xs text-gray-700 mb-2">
+            💡 <strong>Can't find data automatically?</strong> Click below to open Amazon & Google with your barcode:
+          </p>
+          <button
+            type="button"
+            onClick={openLookupHelpers}
+            className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 flex items-center gap-1"
+          >
+            🔗 Open Lookup Helpers (Amazon + Google)
+          </button>
+          <p className="text-xs text-gray-600 mt-2">
+            Then copy/paste the data you find into the fields above.
+          </p>
+        </div>
       </div>
 
       {/* Copy Protection */}
