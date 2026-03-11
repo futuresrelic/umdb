@@ -417,20 +417,45 @@ function CopyForm({
 
   // Open helper links for manual lookup
   const openLookupHelpers = () => {
-    const barcode = form.upc || form.ean || form.asin;
     const movieQuery = movie ? `${movie.title} ${movie.year}` : '';
 
-    if (barcode) {
-      // Open Amazon, Google, eBay with barcode
-      window.open(`https://www.amazon.com/s?k=${barcode}`, '_blank');
-      window.open(`https://www.google.com/search?q=${barcode}+DVD+Blu-ray`, '_blank');
+    let message = '🔗 Opening lookup helpers...\n\n';
+
+    if (form.asin) {
+      // ASIN = direct Amazon product page
+      window.open(`https://www.amazon.com/dp/${form.asin}`, '_blank', 'noopener');
+      window.open(`https://www.amazon.ca/dp/${form.asin}`, '_blank', 'noopener');
+      message += '✓ Opened Amazon US + CA with your ASIN\n';
+      message += `   (Direct product link: ${form.asin})\n\n`;
+    } else if (form.upc || form.ean) {
+      // UPC/EAN = search
+      const barcode = form.upc || form.ean;
+      window.open(`https://www.amazon.com/s?k=${barcode}`, '_blank', 'noopener');
+      window.open(`https://www.google.com/search?q=${barcode}+DVD+Blu-ray`, '_blank', 'noopener');
+      message += '✓ Opened Amazon + Google with your barcode\n\n';
     } else if (movieQuery) {
-      // Open with movie title
-      window.open(`https://www.amazon.com/s?k=${encodeURIComponent(movieQuery + ' DVD Blu-ray')}`, '_blank');
-      window.open(`https://www.google.com/search?q=${encodeURIComponent(movieQuery + ' DVD Blu-ray')}`, '_blank');
+      // Movie title search
+      const searchQuery = encodeURIComponent(movieQuery + ' DVD Blu-ray');
+      window.open(`https://www.amazon.com/s?k=${searchQuery}`, '_blank', 'noopener');
+      window.open(`https://www.google.com/search?q=${searchQuery}`, '_blank', 'noopener');
+      message += '✓ Opened Amazon + Google with movie title\n\n';
     } else {
-      alert('Enter a barcode or select a movie first!');
+      alert('Enter a barcode/ASIN or select a movie first!');
+      return;
     }
+
+    message += '📋 Now copy this data from Amazon:\n';
+    message += '━━━━━━━━━━━━━━━━━━━━━━━━\n';
+    message += '• Format: DVD/Blu-ray/4K\n';
+    message += '• Studio/Distributor\n';
+    message += '• Release Date\n';
+    message += '• Region Code\n';
+    message += '• Number of discs\n';
+    message += '• Audio (scroll to Product Details)\n';
+    message += '• Subtitles\n';
+    message += '\nPaste into the form & click Save!';
+
+    setTimeout(() => alert(message), 300);
   };
 
   // Apply selected scraped data to form
