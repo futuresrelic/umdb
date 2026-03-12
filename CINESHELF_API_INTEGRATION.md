@@ -592,6 +592,226 @@ updatePhysicalCopy($copyId, ['umdb_release_id' => $releaseId]);
 
 ---
 
+## Box Sets
+
+Box sets are multi-movie collections (like "The Matrix Trilogy" or "The Lord of the Rings Extended Edition Box Set").
+
+### Create Box Set
+```
+POST /api/v1/box-sets
+X-API-Key: your_api_key
+```
+
+**Request body:**
+```json
+{
+  "name": "The Matrix Trilogy",
+  "format": "DVD Box Set",
+  "edition": "Ultimate Collection",
+  "region": "Region 1",
+  "package_type": "Slipcase",
+  "notes": "Complete trilogy with bonus materials",
+  "has_slipcover": true,
+  "has_booklet": false,
+  "has_bonus_disc": true,
+  "bonus_disc_count": 1,
+  "has_digital_copy": false,
+  "has_3d": false,
+  "cover_image": "https://example.com/matrix-trilogy-cover.jpg",
+  "spine_image": "https://example.com/matrix-trilogy-spine.jpg",
+  "movies": [
+    {
+      "tmdb_id": "603",
+      "title": "The Matrix",
+      "year": 1999,
+      "disc_number": 1,
+      "disc_label": "Disc 1: The Matrix",
+      "is_present": true,
+      "position": 0
+    },
+    {
+      "tmdb_id": "604",
+      "title": "The Matrix Reloaded",
+      "year": 2003,
+      "disc_number": 2,
+      "disc_label": "Disc 2: The Matrix Reloaded",
+      "is_present": true,
+      "position": 1,
+      "umdb_release_id": "rel-cm5abc123"
+    },
+    {
+      "tmdb_id": "605",
+      "title": "The Matrix Revolutions",
+      "year": 2003,
+      "disc_number": 3,
+      "disc_label": "Disc 3: The Matrix Revolutions",
+      "is_present": true,
+      "position": 2
+    }
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "duplicate": false,
+  "box_set": {
+    "id": "boxset-cm5xyz789",
+    "name": "The Matrix Trilogy",
+    "format": "DVD Box Set",
+    "edition": "Ultimate Collection",
+    "region": "Region 1",
+    "package_type": "Slipcase",
+    "notes": "Complete trilogy with bonus materials",
+    "has_slipcover": true,
+    "has_booklet": false,
+    "has_bonus_disc": true,
+    "bonus_disc_count": 1,
+    "has_digital_copy": false,
+    "has_3d": false,
+    "cover_image": "https://example.com/matrix-trilogy-cover.jpg",
+    "spine_image": "https://example.com/matrix-trilogy-spine.jpg",
+    "movies": [
+      {
+        "disc_number": 1,
+        "disc_label": "Disc 1: The Matrix",
+        "is_present": true,
+        "position": 0,
+        "umdb_release_id": null,
+        "movie": {
+          "id": "umdb-cm5abc123",
+          "title": "The Matrix",
+          "year": 1999,
+          "poster_path": "https://..."
+        }
+      },
+      {
+        "disc_number": 2,
+        "disc_label": "Disc 2: The Matrix Reloaded",
+        "is_present": true,
+        "position": 1,
+        "umdb_release_id": "rel-cm5abc123",
+        "movie": {
+          "id": "umdb-cm5def456",
+          "title": "The Matrix Reloaded",
+          "year": 2003,
+          "poster_path": "https://..."
+        }
+      },
+      {
+        "disc_number": 3,
+        "disc_label": "Disc 3: The Matrix Revolutions",
+        "is_present": true,
+        "position": 2,
+        "umdb_release_id": null,
+        "movie": {
+          "id": "umdb-cm5ghi789",
+          "title": "The Matrix Revolutions",
+          "year": 2003,
+          "poster_path": "https://..."
+        }
+      }
+    ]
+  }
+}
+```
+
+**Notes:**
+- **Auto-creates movies**: If a movie with `tmdb_id` or `imdb_id` doesn't exist in UMDB, it will be auto-created
+- **Deduplication**: If a box set with the same `name` + `format` already exists, returns `duplicate: true` with the existing box set
+- **Release linking**: Use `umdb_release_id` to link to a specific physical edition (e.g., if you have the special edition Blu-ray of Matrix Reloaded)
+- **Movies array**: Each movie requires either:
+  - `tmdb_id` or `imdb_id` (UMDB will create/find the movie)
+  - `title` + `year` (for manual entry)
+  - `umdb_release_id` (if already cataloged)
+
+### Get Box Set
+```
+GET /api/v1/box-sets/{boxsetId}
+```
+
+**Example:**
+```bash
+curl "https://umdb-production.up.railway.app/api/v1/box-sets/boxset-cm5xyz789"
+```
+
+**Response:** Same as create response (see above)
+
+### List All Box Sets
+```
+GET /api/v1/box-sets?page=1&limit=20
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": "boxset-cm5xyz789",
+      "name": "The Matrix Trilogy",
+      "cover_image": "https://...",
+      "movies": [...]
+    }
+  ],
+  "total_results": 42,
+  "total_pages": 3,
+  "page": 1
+}
+```
+
+### Box Set Fields
+
+| Field | Type | Description | Example |
+|-------|------|-------------|---------|
+| `id` | string | Box set ID (prefixed with `boxset-`) | `"boxset-cm5xyz789"` |
+| `name` | string | Box set name | `"The Matrix Trilogy"` |
+| `format` | string | Physical format | `"DVD Box Set"`, `"Blu-ray Box Set"` |
+| `edition` | string | Edition type | `"Ultimate Collection"`, `"Limited Edition"` |
+| `region` | string | Region lock | `"Region 1"`, `"Region A"` |
+| `package_type` | string | Package style | `"Slipcase"`, `"Steelbook"`, `"Digibook"` |
+| `notes` | string | Additional notes | `"Complete trilogy..."` |
+| `has_slipcover` | boolean | Slipcover included | `true` |
+| `has_booklet` | boolean | Booklet included | `false` |
+| `has_bonus_disc` | boolean | Bonus disc(s) included | `true` |
+| `bonus_disc_count` | number | Number of bonus discs | `1` |
+| `has_digital_copy` | boolean | Digital copy included | `false` |
+| `has_3d` | boolean | 3D version included | `false` |
+| `cover_image` | string | Cover art URL | `"https://..."` or `"data:image/..."` |
+| `spine_image` | string | Spine image URL | `"https://..."` |
+| `movies` | array | Movies in box set | See below |
+
+### Movies Array (in Box Set)
+
+Each movie in the box set:
+
+```json
+{
+  "disc_number": 1,
+  "disc_label": "Disc 1: The Matrix",
+  "is_present": true,
+  "position": 0,
+  "umdb_release_id": "rel-cm5abc123",
+  "movie": {
+    "id": "umdb-cm5def456",
+    "title": "The Matrix",
+    "year": 1999,
+    "poster_path": "https://..."
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `disc_number` | number | Disc number in the set |
+| `disc_label` | string | Label on the disc |
+| `is_present` | boolean | Whether disc is present (for tracking missing discs) |
+| `position` | number | Order in the box set (0-indexed) |
+| `umdb_release_id` | string | Link to specific UMDB edition (if cataloged) |
+| `movie` | object | Movie metadata |
+
+---
+
 ## Error Handling
 
 ### Common HTTP Status Codes
@@ -754,6 +974,20 @@ class UmdbClient {
         $id = str_replace('umdb-', '', $movieId);
         return $this->get("/movie/umdb-{$id}/editions");
     }
+
+    public function createBoxSet($data) {
+        return $this->post('/box-sets', $data);
+    }
+
+    public function getBoxSet($boxsetId) {
+        // Normalize ID (strip boxset- prefix if present, then re-add)
+        $id = str_replace('boxset-', '', $boxsetId);
+        return $this->get("/box-sets/boxset-{$id}");
+    }
+
+    public function listBoxSets($page = 1, $limit = 20) {
+        return $this->get('/box-sets', ['page' => $page, 'limit' => $limit]);
+    }
 }
 
 // Usage
@@ -782,6 +1016,54 @@ $newEdition = $umdb->post('/editions', [
     'cover_image' => 'https://example.com/cover.jpg'
 ]);
 echo "Created: " . $newEdition['edition']['id'];
+
+// Create box set
+$boxSet = $umdb->createBoxSet([
+    'name' => 'The Matrix Trilogy',
+    'format' => 'DVD Box Set',
+    'edition' => 'Ultimate Collection',
+    'has_slipcover' => true,
+    'has_bonus_disc' => true,
+    'bonus_disc_count' => 1,
+    'cover_image' => 'https://example.com/matrix-cover.jpg',
+    'movies' => [
+        [
+            'tmdb_id' => '603',
+            'title' => 'The Matrix',
+            'year' => 1999,
+            'disc_number' => 1,
+            'disc_label' => 'Disc 1: The Matrix',
+            'position' => 0
+        ],
+        [
+            'tmdb_id' => '604',
+            'title' => 'The Matrix Reloaded',
+            'year' => 2003,
+            'disc_number' => 2,
+            'position' => 1
+        ],
+        [
+            'tmdb_id' => '605',
+            'title' => 'The Matrix Revolutions',
+            'year' => 2003,
+            'disc_number' => 3,
+            'position' => 2
+        ]
+    ]
+]);
+echo "Box set created: " . $boxSet['box_set']['id'] . "\n";
+
+// Get box set details
+$boxSet = $umdb->getBoxSet('boxset-cm5xyz789');
+echo "Box set: {$boxSet['name']}\n";
+echo "Movies: " . count($boxSet['movies']) . "\n";
+foreach ($boxSet['movies'] as $movie) {
+    echo "  - {$movie['movie']['title']} ({$movie['disc_label']})\n";
+}
+
+// List all box sets
+$boxSets = $umdb->listBoxSets(1, 10);
+echo "Total box sets: " . $boxSets['total_results'] . "\n";
 ?>
 ```
 
