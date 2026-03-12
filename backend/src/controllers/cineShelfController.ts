@@ -165,7 +165,9 @@ function formatRelease(copy: any, movie?: any) {
     format: displayFormat,
     language: copy.language || null,
     package_type: copy.packageType || copy.edition || 'Standard',
+    edition: copy.edition || null,
     region: copy.region || null,
+    video_standard: copy.videoStandard || null,
     country: copy.country || null,
     barcode: copy.upc || copy.ean || null,
     upc: copy.upc || null,
@@ -175,11 +177,31 @@ function formatRelease(copy: any, movie?: any) {
       ? copy.releaseDate.toISOString().split('T')[0]
       : null,
     distributor: copy.distributor || null,
+    studio: copy.studio || null,
+    edition_publisher: copy.editionPublisher || null,
     disc_count: copy.discCount || 1,
+    audio_formats: copy.audioFormats || [],
+    subtitles: copy.subtitles || [],
+    copy_protected: copy.copyProtected || null,
+    bonus_content: copy.bonusContent || null,
     notes: copy.notes || null,
     cover_image: copy.coverImageUrl || null,
     components,
   };
+
+  // Include additional images if present
+  if (copy.images && Array.isArray(copy.images)) {
+    result.images = copy.images.map((img: any) => ({
+      id: img.id,
+      type: img.imageType?.toLowerCase() || 'snapshot',
+      url: img.dataUrl,
+      alt_text: img.altText || null,
+      is_primary: img.isPrimary || false,
+      width: img.width || null,
+      height: img.height || null,
+      mime_type: img.mimeType || 'image/jpeg',
+    }));
+  }
 
   if (movie) {
     result.movie = {
@@ -492,6 +514,11 @@ export const getMovieReleases = asyncHandler(async (req: Request, res: Response)
 
   const copies = await prisma.physicalCopy.findMany({
     where: { movieId: rawId, status: EntryStatus.VERIFIED },
+    include: {
+      images: {
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
+    },
     orderBy: { releaseDate: 'asc' },
   });
 
@@ -509,6 +536,9 @@ export const getRelease = asyncHandler(async (req: Request, res: Response) => {
     where: { id: rawId, status: EntryStatus.VERIFIED },
     include: {
       movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+      images: {
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
     },
   });
 
@@ -695,6 +725,11 @@ export const getMovieEditions = asyncHandler(async (req: Request, res: Response)
 
   const copies = await prisma.physicalCopy.findMany({
     where: { movieId: rawId, status: EntryStatus.VERIFIED },
+    include: {
+      images: {
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
+    },
     orderBy: [{ releaseDate: 'asc' }, { createdAt: 'asc' }],
   });
 
@@ -712,6 +747,9 @@ export const getEdition = asyncHandler(async (req: Request, res: Response) => {
     where: { id: rawId, status: EntryStatus.VERIFIED },
     include: {
       movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+      images: {
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
     },
   });
   if (!copy) throw new AppError('Edition not found', 404);
