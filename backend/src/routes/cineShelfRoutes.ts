@@ -19,6 +19,7 @@ import {
   createBoxSet,
   getBoxSet,
   listBoxSets,
+  createBoxSetReleases,
 } from '../controllers/cineShelfController';
 
 const router = Router();
@@ -61,5 +62,6 @@ router.put('/editions/:id', requireApiKey, updateEdition);
 router.get('/box-sets', listBoxSets);
 router.get('/box-sets/:boxsetId', getBoxSet);
 router.post('/box-sets', requireApiKey, createBoxSet);
+router.post('/box-sets/:boxsetId/create-releases', requireApiKey, createBoxSetReleases);
 
 export default router;

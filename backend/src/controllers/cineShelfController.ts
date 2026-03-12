@@ -187,7 +187,24 @@ function formatRelease(copy: any, movie?: any) {
     notes: copy.notes || null,
     cover_image: copy.coverImageUrl || null,
     components,
+    is_box_set: copy.isBoxSet || false,
+    box_set_id: copy.boxSetId ? `boxset-${copy.boxSetId}` : null,
   };
+
+  // If this is a box set release, include all movies in the box set
+  if (copy.isBoxSet && copy.boxSet) {
+    result.box_set_movies = (copy.boxSet.items || [])
+      .sort((a: any, b: any) => a.position - b.position)
+      .map((item: any) => ({
+        umdb_movie_id: item.movie ? toUmdbId(item.movie.id) : null,
+        title: item.movie?.title || null,
+        year: item.movie?.year || null,
+        disc_number: item.discNumber || null,
+        disc_label: item.discLabel || null,
+        is_present: item.isPresent ?? true,
+        position: item.position,
+      }));
+  }
 
   // Include additional images if present
   if (copy.images && Array.isArray(copy.images)) {
@@ -518,6 +535,16 @@ export const getMovieReleases = asyncHandler(async (req: Request, res: Response)
       images: {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       },
+      boxSet: {
+        include: {
+          items: {
+            include: {
+              movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+            },
+            orderBy: { position: 'asc' },
+          },
+        },
+      },
     },
     orderBy: { releaseDate: 'asc' },
   });
@@ -538,6 +565,16 @@ export const getRelease = asyncHandler(async (req: Request, res: Response) => {
       movie: { select: { id: true, title: true, year: true, posterUrl: true } },
       images: {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
+      boxSet: {
+        include: {
+          items: {
+            include: {
+              movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+            },
+            orderBy: { position: 'asc' },
+          },
+        },
       },
     },
   });
@@ -729,6 +766,16 @@ export const getMovieEditions = asyncHandler(async (req: Request, res: Response)
       images: {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       },
+      boxSet: {
+        include: {
+          items: {
+            include: {
+              movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+            },
+            orderBy: { position: 'asc' },
+          },
+        },
+      },
     },
     orderBy: [{ releaseDate: 'asc' }, { createdAt: 'asc' }],
   });
@@ -749,6 +796,16 @@ export const getEdition = asyncHandler(async (req: Request, res: Response) => {
       movie: { select: { id: true, title: true, year: true, posterUrl: true } },
       images: {
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+      },
+      boxSet: {
+        include: {
+          items: {
+            include: {
+              movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+            },
+            orderBy: { position: 'asc' },
+          },
+        },
       },
     },
   });
@@ -1119,7 +1176,33 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
     await prisma.boxSetItem.createMany({ data: itemsData });
   }
 
-  // Re-fetch with items
+  // Create PhysicalCopy records for each movie in the box set
+  // This makes the box set appear in each movie's releases list
+  const releasesData = [];
+  for (const item of itemsData) {
+    if (item.movieId) {
+      releasesData.push({
+        movieId: item.movieId,
+        format: (format ? resolveFormat(format) : 'OTHER') as any,
+        editionName: name,
+        edition: edition || null,
+        packageType: package_type || null,
+        region: region || null,
+        notes: notes || null,
+        coverImageUrl: cover_image || null,
+        isBoxSet: true,
+        boxSetId: boxSet.id,
+        boxSetPosition: item.position,
+        status: EntryStatus.VERIFIED,
+      });
+    }
+  }
+
+  if (releasesData.length > 0) {
+    await prisma.physicalCopy.createMany({ data: releasesData as any });
+  }
+
+  // Re-fetch with items and releases
   const created = await prisma.boxSet.findUnique({
     where: { id: boxSet.id },
     include: {
@@ -1129,12 +1212,22 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
         },
         orderBy: { position: 'asc' },
       },
+      releases: {
+        select: { id: true },
+        take: 1,
+      },
     },
   });
 
+  const response: any = formatBoxSet(created);
+  // Add release_id (use first release since they all share the same box set)
+  if (created && created.releases && created.releases.length > 0) {
+    response.release_id = `rel-${created.releases[0].id}`;
+  }
+
   res.status(201).json({
     duplicate: false,
-    box_set: formatBoxSet(created),
+    box_set: response,
   });
 });
 
@@ -1151,12 +1244,22 @@ export const getBoxSet = asyncHandler(async (req: Request, res: Response) => {
         },
         orderBy: { position: 'asc' },
       },
+      releases: {
+        select: { id: true },
+        take: 1,
+      },
     },
   });
 
   if (!boxSet) throw new AppError('Box set not found', 404);
 
-  res.json(formatBoxSet(boxSet));
+  const response: any = formatBoxSet(boxSet);
+  // Add release_id
+  if (boxSet.releases && boxSet.releases.length > 0) {
+    response.release_id = `rel-${boxSet.releases[0].id}`;
+  }
+
+  res.json(response);
 });
 
 // GET /v1/box-sets — List all box sets
@@ -1176,6 +1279,10 @@ export const listBoxSets = asyncHandler(async (req: Request, res: Response) => {
           },
           orderBy: { position: 'asc' },
         },
+        releases: {
+          select: { id: true },
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
       take,
@@ -1185,9 +1292,85 @@ export const listBoxSets = asyncHandler(async (req: Request, res: Response) => {
   ]);
 
   res.json({
-    results: boxSets.map(formatBoxSet),
+    results: boxSets.map((bs) => {
+      const formatted: any = formatBoxSet(bs);
+      if (bs.releases && bs.releases.length > 0) {
+        formatted.release_id = `rel-${bs.releases[0].id}`;
+      }
+      return formatted;
+    }),
     total_results: total,
     total_pages: Math.ceil(total / take),
     page: parseInt(page as string, 10),
+  });
+});
+
+// POST /v1/box-sets/:boxsetId/create-releases — Backfill releases for existing box set
+export const createBoxSetReleases = asyncHandler(async (req: Request, res: Response) => {
+  const rawId = req.params.boxsetId.replace(/^boxset-/, '');
+
+  const boxSet = await prisma.boxSet.findUnique({
+    where: { id: rawId },
+    include: {
+      items: {
+        include: {
+          movie: { select: { id: true } },
+        },
+        orderBy: { position: 'asc' },
+      },
+      releases: {
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!boxSet) throw new AppError('Box set not found', 404);
+
+  // Check if releases already exist
+  if (boxSet.releases && boxSet.releases.length > 0) {
+    return res.status(200).json({
+      message: 'Releases already exist for this box set',
+      release_ids: boxSet.releases.map(r => `rel-${r.id}`),
+    });
+  }
+
+  // Create PhysicalCopy records for each movie
+  const releasesData = [];
+  for (const item of boxSet.items) {
+    if (item.movieId) {
+      releasesData.push({
+        movieId: item.movieId,
+        format: (boxSet.format ? resolveFormat(boxSet.format) : 'OTHER') as any,
+        editionName: boxSet.name,
+        edition: boxSet.edition || null,
+        packageType: boxSet.packageType || null,
+        region: boxSet.region || null,
+        notes: boxSet.notes || null,
+        coverImageUrl: boxSet.coverImageUrl || null,
+        isBoxSet: true,
+        boxSetId: boxSet.id,
+        boxSetPosition: item.position,
+        status: EntryStatus.VERIFIED,
+      });
+    }
+  }
+
+  if (releasesData.length === 0) {
+    throw new AppError('No movies found in box set to create releases for', 400);
+  }
+
+  // Create the releases
+  await prisma.physicalCopy.createMany({ data: releasesData as any });
+
+  // Fetch created releases
+  const createdReleases = await prisma.physicalCopy.findMany({
+    where: { boxSetId: boxSet.id },
+    select: { id: true },
+  });
+
+  res.status(201).json({
+    message: 'Releases created successfully',
+    release_ids: createdReleases.map(r => `rel-${r.id}`),
+    count: createdReleases.length,
   });
 });

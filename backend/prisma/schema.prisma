@@ -243,6 +243,12 @@ model PhysicalCopy {
   coverImageUrl String?  // URL to cover image
   notes       String?  @db.Text
 
+  // Box set linkage (when this release is part of a multi-movie box set)
+  isBoxSet      Boolean? @default(false)
+  boxSetId      String?
+  boxSet        BoxSet?  @relation("BoxSetReleases", fields: [boxSetId], references: [id], onDelete: Cascade)
+  boxSetPosition Int?    // Position of this movie in the box set
+
   // Submission tracking
   status        EntryStatus @default(PENDING)
   submittedById String?
@@ -256,6 +262,7 @@ model PhysicalCopy {
 
   @@index([movieId])
   @@index([format])
+  @@index([boxSetId])
 }
 
 // Alternative titles for movies
@@ -426,6 +433,7 @@ model BoxSet {
 
   // Relationships
   items       BoxSetItem[]
+  releases    PhysicalCopy[] @relation("BoxSetReleases")
 
   // Submission tracking
   status        EntryStatus @default(PENDING)
