@@ -21,6 +21,7 @@ import {
   listBoxSets,
   createBoxSetReleases,
 } from '../controllers/cineShelfController';
+import { migrateBoxSetFields } from '../controllers/migrationController';
 
 const router = Router();
 
@@ -63,5 +64,8 @@ router.get('/box-sets', listBoxSets);
 router.get('/box-sets/:boxsetId', getBoxSet);
 router.post('/box-sets', requireApiKey, createBoxSet);
 router.post('/box-sets/:boxsetId/create-releases', requireApiKey, createBoxSetReleases);
+
+// Migrations (admin only - requires API key)
+router.get('/migrate/box-set-fields', requireApiKey, migrateBoxSetFields);
 
 export default router;
