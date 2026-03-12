@@ -958,3 +958,236 @@ export const createMovieCineShelf = asyncHandler(async (req: Request, res: Respo
     movie: formatMovieDetails(full, []),
   });
 });
+
+// ─── Box Sets ──────────────────────────────────────────────────────────────────
+
+function formatBoxSet(boxSet: any) {
+  return {
+    id: `boxset-${boxSet.id}`,
+    name: boxSet.name,
+    format: boxSet.format || null,
+    edition: boxSet.edition || null,
+    region: boxSet.region || null,
+    package_type: boxSet.packageType || null,
+    notes: boxSet.notes || null,
+    has_slipcover: boxSet.hasSlipcover || false,
+    has_booklet: boxSet.hasBooklet || false,
+    has_bonus_disc: boxSet.hasBonusDisc || false,
+    bonus_disc_count: boxSet.bonusDiscCount || null,
+    has_digital_copy: boxSet.hasDigitalCopy || false,
+    has_3d: boxSet.has3d || false,
+    cover_image: boxSet.coverImageUrl || null,
+    spine_image: boxSet.spineImageUrl || null,
+    movies: (boxSet.items || [])
+      .sort((a: any, b: any) => a.position - b.position)
+      .map((item: any) => ({
+        disc_number: item.discNumber || null,
+        disc_label: item.discLabel || null,
+        is_present: item.isPresent ?? true,
+        position: item.position,
+        umdb_release_id: item.physicalCopyId ? `rel-${item.physicalCopyId}` : null,
+        movie: item.movie ? {
+          id: toUmdbId(item.movie.id),
+          title: item.movie.title,
+          year: item.movie.year || null,
+          poster_path: item.movie.posterUrl || null,
+        } : null,
+      })),
+  };
+}
+
+// POST /v1/box-sets — Create a new box set
+export const createBoxSet = asyncHandler(async (req: Request, res: Response) => {
+  const {
+    name,
+    format,
+    edition,
+    region,
+    package_type,
+    notes,
+    has_slipcover,
+    has_booklet,
+    has_bonus_disc,
+    bonus_disc_count,
+    has_digital_copy,
+    has_3d,
+    cover_image,
+    spine_image,
+    movies = [],
+  } = req.body;
+
+  if (!name) throw new AppError('name is required', 400);
+
+  // Deduplication: check if box set with same name + format already exists
+  const existing = await prisma.boxSet.findFirst({
+    where: {
+      name,
+      format: format || null,
+      status: EntryStatus.VERIFIED,
+    },
+    include: {
+      items: {
+        include: {
+          movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+        },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+
+  if (existing) {
+    return res.status(200).json({
+      duplicate: true,
+      message: 'A box set with this name and format already exists',
+      box_set: formatBoxSet(existing),
+    });
+  }
+
+  // Create box set
+  const boxSet = await prisma.boxSet.create({
+    data: {
+      name,
+      format: format || null,
+      edition: edition || null,
+      region: region || null,
+      packageType: package_type || null,
+      notes: notes || null,
+      hasSlipcover: has_slipcover ?? false,
+      hasBooklet: has_booklet ?? false,
+      hasBonusDisc: has_bonus_disc ?? false,
+      bonusDiscCount: bonus_disc_count || null,
+      hasDigitalCopy: has_digital_copy ?? false,
+      has3d: has_3d ?? false,
+      coverImageUrl: cover_image || null,
+      spineImageUrl: spine_image || null,
+      status: EntryStatus.VERIFIED,
+    },
+  });
+
+  // Create box set items (movies)
+  const itemsData = [];
+  for (let i = 0; i < movies.length; i++) {
+    const movieData = movies[i];
+    let resolvedMovieId: string | null = null;
+    let resolvedPhysicalCopyId: string | null = null;
+
+    // If umdb_release_id provided, use it
+    if (movieData.umdb_release_id) {
+      resolvedPhysicalCopyId = movieData.umdb_release_id.replace(/^rel-/, '');
+    }
+
+    // Resolve or create movie
+    if (movieData.tmdb_id || movieData.imdb_id || movieData.title) {
+      const { movie } = await findOrCreateMovie({
+        title: movieData.title,
+        year: movieData.year,
+        tmdb_id: movieData.tmdb_id,
+        imdb_id: movieData.imdb_id,
+        overview: movieData.overview,
+        poster_url: movieData.poster_url,
+        backdrop_url: movieData.backdrop_url,
+        runtime: movieData.runtime,
+        director: movieData.director,
+        genre: movieData.genre,
+        rating: movieData.rating,
+        media_type: movieData.media_type,
+        language: movieData.language,
+        country: movieData.country,
+      });
+      resolvedMovieId = movie.id;
+    }
+
+    if (!resolvedMovieId && !resolvedPhysicalCopyId) {
+      throw new AppError(
+        `Movie at position ${i} must have either umdb_release_id, tmdb_id, imdb_id, or title`,
+        400
+      );
+    }
+
+    itemsData.push({
+      boxSetId: boxSet.id,
+      movieId: resolvedMovieId || undefined,
+      physicalCopyId: resolvedPhysicalCopyId || undefined,
+      discNumber: movieData.disc_number || null,
+      discLabel: movieData.disc_label || null,
+      isPresent: movieData.is_present ?? true,
+      position: movieData.position ?? i,
+    });
+  }
+
+  if (itemsData.length > 0) {
+    await prisma.boxSetItem.createMany({ data: itemsData });
+  }
+
+  // Re-fetch with items
+  const created = await prisma.boxSet.findUnique({
+    where: { id: boxSet.id },
+    include: {
+      items: {
+        include: {
+          movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+        },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+
+  res.status(201).json({
+    duplicate: false,
+    box_set: formatBoxSet(created),
+  });
+});
+
+// GET /v1/box-sets/:boxsetId — Get a specific box set
+export const getBoxSet = asyncHandler(async (req: Request, res: Response) => {
+  const rawId = req.params.boxsetId.replace(/^boxset-/, '');
+
+  const boxSet = await prisma.boxSet.findUnique({
+    where: { id: rawId, status: EntryStatus.VERIFIED },
+    include: {
+      items: {
+        include: {
+          movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+        },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+
+  if (!boxSet) throw new AppError('Box set not found', 404);
+
+  res.json(formatBoxSet(boxSet));
+});
+
+// GET /v1/box-sets — List all box sets
+export const listBoxSets = asyncHandler(async (req: Request, res: Response) => {
+  const { page = '1', limit = '20' } = req.query;
+
+  const take = Math.min(parseInt(limit as string, 10), 100);
+  const skip = (parseInt(page as string, 10) - 1) * take;
+
+  const [boxSets, total] = await Promise.all([
+    prisma.boxSet.findMany({
+      where: { status: EntryStatus.VERIFIED },
+      include: {
+        items: {
+          include: {
+            movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+          },
+          orderBy: { position: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+      skip,
+    }),
+    prisma.boxSet.count({ where: { status: EntryStatus.VERIFIED } }),
+  ]);
+
+  res.json({
+    results: boxSets.map(formatBoxSet),
+    total_results: total,
+    total_pages: Math.ceil(total / take),
+    page: parseInt(page as string, 10),
+  });
+});

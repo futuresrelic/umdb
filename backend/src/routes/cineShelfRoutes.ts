@@ -16,6 +16,9 @@ import {
   getEdition,
   updateEdition,
   createMovieCineShelf,
+  createBoxSet,
+  getBoxSet,
+  listBoxSets,
 } from '../controllers/cineShelfController';
 
 const router = Router();
@@ -53,5 +56,10 @@ router.get('/movie/:id/editions', getMovieEditions);
 router.get('/editions/:id', getEdition);
 router.post('/editions', requireApiKey, createEdition);
 router.put('/editions/:id', requireApiKey, updateEdition);
+
+// Box Sets
+router.get('/box-sets', listBoxSets);
+router.get('/box-sets/:boxsetId', getBoxSet);
+router.post('/box-sets', requireApiKey, createBoxSet);
 
 export default router;

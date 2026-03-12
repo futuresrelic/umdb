@@ -23,6 +23,7 @@ model User {
 
   submittedMovies       Movie[]        @relation("SubmittedMovies")
   submittedPhysicalCopies PhysicalCopy[] @relation("SubmittedPhysicalCopies")
+  submittedBoxSets      BoxSet[]       @relation("SubmittedBoxSets")
   uploadedImages        MediaImage[]   @relation("UploadedImages")
 
   @@index([email])
@@ -82,6 +83,7 @@ model Movie {
   physicalCopies  PhysicalCopy[]
   alternativeTitles AlternativeTitle[]
   images          MediaImage[]   @relation("MovieImages")
+  boxSetItems     BoxSetItem[]
 
   @@index([title])
   @@index([year])
@@ -250,6 +252,7 @@ model PhysicalCopy {
   rejectionReason String? @db.Text
 
   images          MediaImage[]   @relation("PhysicalCopyImages")
+  boxSetItems     BoxSetItem[]
 
   @@index([movieId])
   @@index([format])
@@ -394,4 +397,71 @@ enum PhysicalFormat {
   FILM_35MM
   FILM_70MM
   OTHER
+}
+
+// Box sets (multi-movie collections like "The Matrix Trilogy")
+model BoxSet {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  format      String?  // "DVD Box Set", "Blu-ray Box Set", etc.
+  edition     String?  // "Ultimate Collection", "Limited Edition"
+  region      String?
+  packageType String?
+  notes       String?  @db.Text
+
+  // Box set specific features
+  hasSlipcover    Boolean @default(false)
+  hasBooklet      Boolean @default(false)
+  hasBonusDisc    Boolean @default(false)
+  bonusDiscCount  Int?
+  hasDigitalCopy  Boolean @default(false)
+  has3d           Boolean @default(false)
+
+  // Media
+  coverImageUrl   String?
+  spineImageUrl   String?
+
+  // Relationships
+  items       BoxSetItem[]
+
+  // Submission tracking
+  status        EntryStatus @default(PENDING)
+  submittedById String?
+  submittedBy   User?    @relation("SubmittedBoxSets", fields: [submittedById], references: [id])
+  verifiedAt    DateTime?
+  rejectedAt    DateTime?
+  rejectionReason String? @db.Text
+
+  @@index([name])
+  @@index([status])
+}
+
+// Junction table linking box sets to movies/releases
+model BoxSetItem {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  boxSetId    String
+  boxSet      BoxSet   @relation(fields: [boxSetId], references: [id], onDelete: Cascade)
+
+  // Can link to either a movie OR a specific physical copy
+  movieId     String?
+  movie       Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+
+  physicalCopyId String?
+  physicalCopy   PhysicalCopy? @relation(fields: [physicalCopyId], references: [id], onDelete: SetNull)
+
+  // Disc metadata
+  discNumber  Int?
+  discLabel   String?
+  isPresent   Boolean @default(true)
+  position    Int     // Order in the box set (0-indexed)
+
+  @@index([boxSetId])
+  @@index([movieId])
+  @@index([physicalCopyId])
+  @@index([position])
 }
