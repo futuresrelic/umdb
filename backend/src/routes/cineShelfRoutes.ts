@@ -26,6 +26,9 @@ import { adminMigrationsPage } from '../controllers/adminController';
 
 const router = Router();
 
+// Admin pages (public - no auth required, auth happens in JavaScript)
+router.get('/admin/migrations', adminMigrationsPage);
+
 // Optional API key auth on all v1 routes
 // (open if UMDB_API_KEY env var is not set)
 router.use(apiKeyAuth);
@@ -65,9 +68,6 @@ router.get('/box-sets', listBoxSets);
 router.get('/box-sets/:boxsetId', getBoxSet);
 router.post('/box-sets', requireApiKey, createBoxSet);
 router.post('/box-sets/:boxsetId/create-releases', requireApiKey, createBoxSetReleases);
-
-// Admin pages
-router.get('/admin/migrations', adminMigrationsPage);
 
 // Migrations (admin only - requires API key)
 router.get('/migrate/box-set-fields', requireApiKey, migrateBoxSetFields);
