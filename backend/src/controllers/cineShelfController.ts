@@ -1067,17 +1067,17 @@ function formatBoxSet(boxSet: any) {
     movies: (boxSet.items || [])
       .sort((a: any, b: any) => a.position - b.position)
       .map((item: any) => ({
+        tmdb_id: item.movie?.tmdbId || null,
+        umdb_movie_id: item.movie ? toUmdbId(item.movie.id) : null,
         disc_number: item.discNumber || null,
         disc_label: item.discLabel || null,
         is_present: item.isPresent ?? true,
         position: item.position,
         umdb_release_id: item.physicalCopyId ? `rel-${item.physicalCopyId}` : null,
-        movie: item.movie ? {
-          id: toUmdbId(item.movie.id),
-          title: item.movie.title,
-          year: item.movie.year || null,
-          poster_path: item.movie.posterUrl || null,
-        } : null,
+        id: item.movie ? toUmdbId(item.movie.id) : null,
+        title: item.movie?.title || null,
+        year: item.movie?.year || null,
+        poster_path: item.movie?.posterUrl || null,
       })),
   };
 }
@@ -1224,6 +1224,15 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
           isBoxSet: true,
           boxSetId: boxSet.id,
           boxSetPosition: item.position,
+          // Box set specific features
+          hasSlipcover: has_slipcover ?? false,
+          hasBooklet: has_booklet ?? false,
+          hasBonusDisc: has_bonus_disc ?? false,
+          bonusDiscCount: bonus_disc_count || null,
+          hasDigitalCopy: has_digital_copy ?? false,
+          has3d: has_3d ?? false,
+          discNumber: item.discNumber || null,
+          discLabel: item.discLabel || null,
           status: EntryStatus.VERIFIED,
         });
       }
@@ -1255,16 +1264,28 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
         orderBy: { position: 'asc' },
       },
       releases: {
-        select: { id: true },
-        take: 1,
+        select: { id: true, movieId: true },
       },
     },
   });
 
   const response: any = formatBoxSet(created);
+
   // Add release_id (use first release since they all share the same box set)
   if (created && created.releases && created.releases.length > 0) {
     response.release_id = `rel-${created.releases[0].id}`;
+  }
+
+  // Add per-movie release IDs to the movies array
+  if (created && 'items' in created && 'releases' in created && response.movies) {
+    response.movies = response.movies.map((movie: any) => {
+      // Find the matching release for this movie
+      const matchingRelease = (created as any).releases?.find((r: any) => r.movieId === movie.id?.replace(/^movie-/, ''));
+      return {
+        ...movie,
+        release_id: matchingRelease ? `rel-${matchingRelease.id}` : undefined,
+      };
+    });
   }
 
   res.status(201).json({
@@ -1392,6 +1413,15 @@ export const createBoxSetReleases = asyncHandler(async (req: Request, res: Respo
         isBoxSet: true,
         boxSetId: boxSet.id,
         boxSetPosition: item.position,
+        // Box set specific features
+        hasSlipcover: boxSet.hasSlipcover ?? false,
+        hasBooklet: boxSet.hasBooklet ?? false,
+        hasBonusDisc: boxSet.hasBonusDisc ?? false,
+        bonusDiscCount: boxSet.bonusDiscCount || null,
+        hasDigitalCopy: boxSet.hasDigitalCopy ?? false,
+        has3d: boxSet.has3d ?? false,
+        discNumber: item.discNumber || null,
+        discLabel: item.discLabel || null,
         status: EntryStatus.VERIFIED,
       });
     }

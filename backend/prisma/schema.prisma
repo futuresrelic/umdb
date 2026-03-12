@@ -249,6 +249,16 @@ model PhysicalCopy {
   boxSet        BoxSet?  @relation("BoxSetReleases", fields: [boxSetId], references: [id], onDelete: Cascade)
   boxSetPosition Int?    // Position of this movie in the box set
 
+  // Box set specific features (inherited from parent box set)
+  hasSlipcover    Boolean? @default(false)
+  hasBooklet      Boolean? @default(false)
+  hasBonusDisc    Boolean? @default(false)
+  bonusDiscCount  Int?
+  hasDigitalCopy  Boolean? @default(false)
+  has3d           Boolean? @default(false)
+  discNumber      Int?     // Disc number within the box set
+  discLabel       String?  // Disc label within the box set
+
   // Submission tracking
   status        EntryStatus @default(PENDING)
   submittedById String?

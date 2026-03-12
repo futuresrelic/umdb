@@ -38,6 +38,18 @@ interface PhysicalCopy {
   coverImageUrl?: string;
   notes?: string;
   status?: string;
+  // Box set fields
+  isBoxSet?: boolean;
+  boxSetId?: string;
+  boxSetPosition?: number;
+  hasSlipcover?: boolean;
+  hasBooklet?: boolean;
+  hasBonusDisc?: boolean;
+  bonusDiscCount?: number;
+  hasDigitalCopy?: boolean;
+  has3d?: boolean;
+  discNumber?: number;
+  discLabel?: string;
 }
 
 interface Props {
@@ -671,6 +683,115 @@ function CopyForm({
         </div>
       </div>
 
+      {/* Box Set / Multi-Feature Release */}
+      <div className="border rounded-lg p-4 bg-purple-50">
+        <div className="flex items-center gap-2 mb-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isBoxSet || false}
+              onChange={(e) => set('isBoxSet', e.target.checked)}
+              className="rounded"
+            />
+            <span className="font-medium">Part of Box Set / Multi-Feature Release</span>
+          </label>
+        </div>
+
+        {form.isBoxSet && (
+          <div className="space-y-3 pl-6 border-l-2 border-purple-300">
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium mb-1">Disc Number</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.discNumber ?? ""}
+                  onChange={(e) => set("discNumber", e.target.value ? parseInt(e.target.value) : undefined)}
+                  placeholder="1"
+                  className="w-full border rounded px-3 py-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">Disc number within the box set</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Disc Label</label>
+                <input
+                  type="text"
+                  value={form.discLabel || ""}
+                  onChange={(e) => set("discLabel", e.target.value)}
+                  placeholder="e.g. Disc 1: The Fellowship"
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded p-3 border">
+              <h5 className="text-sm font-medium mb-2">Box Set Features</h5>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.hasSlipcover || false}
+                    onChange={(e) => set('hasSlipcover', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Slipcover</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.hasBooklet || false}
+                    onChange={(e) => set('hasBooklet', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Booklet</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.hasBonusDisc || false}
+                    onChange={(e) => set('hasBonusDisc', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Bonus Disc</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.hasDigitalCopy || false}
+                    onChange={(e) => set('hasDigitalCopy', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Digital Copy</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.has3d || false}
+                    onChange={(e) => set('has3d', e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>3D</span>
+                </label>
+              </div>
+              {form.hasBonusDisc && (
+                <div className="mt-2">
+                  <label className="block text-sm font-medium mb-1">Bonus Disc Count</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.bonusDiscCount ?? ""}
+                    onChange={(e) => set("bonusDiscCount", e.target.value ? parseInt(e.target.value) : undefined)}
+                    placeholder="1"
+                    className="w-full border rounded px-3 py-2"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Languages and Subtitles */}
       <div className="grid md:grid-cols-2 gap-3">
         <MultiSelect
@@ -1250,6 +1371,54 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
 
                     {copy.editionName && (
                       <div className="text-sm font-medium text-gray-800 mb-1">{copy.editionName}</div>
+                    )}
+
+                    {copy.isBoxSet && (
+                      <div className="mb-2 p-2 bg-purple-50 border border-purple-200 rounded-lg">
+                        <div className="text-sm font-medium text-purple-900 mb-1">
+                          📦 Part of a Box Set
+                          {copy.boxSetId && (
+                            <a
+                              href={`/box-sets/boxset-${copy.boxSetId}`}
+                              className="ml-2 text-purple-600 hover:text-purple-800 underline"
+                            >
+                              View Box Set
+                            </a>
+                          )}
+                        </div>
+                        {copy.discNumber && (
+                          <div className="text-xs text-purple-700">
+                            Disc {copy.discNumber}{copy.discLabel && `: ${copy.discLabel}`}
+                          </div>
+                        )}
+                        <div className="flex gap-2 flex-wrap mt-1 text-xs">
+                          {copy.hasSlipcover && (
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                              ✓ Slipcover
+                            </span>
+                          )}
+                          {copy.hasBooklet && (
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                              ✓ Booklet
+                            </span>
+                          )}
+                          {copy.hasBonusDisc && (
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                              ✓ Bonus Disc{copy.bonusDiscCount && copy.bonusDiscCount > 1 ? ` (${copy.bonusDiscCount})` : ''}
+                            </span>
+                          )}
+                          {copy.hasDigitalCopy && (
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                              ✓ Digital Copy
+                            </span>
+                          )}
+                          {copy.has3d && (
+                            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                              ✓ 3D
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     )}
 
                     {copy.components && (
