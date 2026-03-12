@@ -22,6 +22,7 @@ import {
   createBoxSetReleases,
 } from '../controllers/cineShelfController';
 import { migrateBoxSetFields } from '../controllers/migrationController';
+import { adminMigrationsPage } from '../controllers/adminController';
 
 const router = Router();
 
@@ -64,6 +65,9 @@ router.get('/box-sets', listBoxSets);
 router.get('/box-sets/:boxsetId', getBoxSet);
 router.post('/box-sets', requireApiKey, createBoxSet);
 router.post('/box-sets/:boxsetId/create-releases', requireApiKey, createBoxSetReleases);
+
+// Admin pages
+router.get('/admin/migrations', adminMigrationsPage);
 
 // Migrations (admin only - requires API key)
 router.get('/migrate/box-set-fields', requireApiKey, migrateBoxSetFields);

@@ -202,3 +202,190 @@ export async function setUserRole(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Failed to update user role' });
   }
 }
+
+// GET /api/v1/admin/migrations - serve HTML page with click-to-migrate buttons
+export function adminMigrationsPage(req: Request, res: Response): void {
+  const apiKey = process.env.UMDB_API_KEY || '';
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
+
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UMDB Migrations</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+    }
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: #1a202c;
+    }
+    .subtitle {
+      color: #718096;
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .migration {
+      background: #f7fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .migration h2 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: #2d3748;
+    }
+    .migration p {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    .migration ul {
+      margin: 12px 0 16px 20px;
+      color: #4a5568;
+      font-size: 14px;
+    }
+    .migration li {
+      margin-bottom: 4px;
+    }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      background: #cbd5e0;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    .status.success {
+      background: #c6f6d5;
+      color: #22543d;
+      border: 1px solid #9ae6b4;
+      display: block;
+    }
+    .status.error {
+      background: #fed7d7;
+      color: #742a2a;
+      border: 1px solid #fc8181;
+      display: block;
+    }
+    .status.loading {
+      background: #bee3f8;
+      color: #2c5282;
+      border: 1px solid #90cdf4;
+      display: block;
+    }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      overflow-x: auto;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎬 UMDB Database Migrations</h1>
+    <p class="subtitle">Click the button below to run pending migrations</p>
+
+    <div class="migration">
+      <h2>Box Set Physical Copy Fields</h2>
+      <p>Adds box set linkage to the PhysicalCopy table, enabling movies to show their box set releases.</p>
+      <ul>
+        <li>Add <code>isBoxSet</code>, <code>boxSetId</code>, <code>boxSetPosition</code> columns</li>
+        <li>Create foreign key constraint to BoxSet</li>
+        <li>Add index for performance</li>
+      </ul>
+      <button onclick="runMigration()">Run Migration</button>
+      <div id="status" class="status"></div>
+    </div>
+  </div>
+
+  <script>
+    async function runMigration() {
+      const btn = document.querySelector('button');
+      const status = document.getElementById('status');
+
+      btn.disabled = true;
+      status.className = 'status loading';
+      status.textContent = '⏳ Running migration...';
+
+      try {
+        const response = await fetch('${baseUrl}/api/v1/migrate/box-set-fields', {
+          headers: {
+            'X-API-Key': '${apiKey}'
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          status.className = 'status success';
+          if (data.already_migrated) {
+            status.innerHTML = '✅ Migration already applied<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+          } else {
+            status.innerHTML = '✅ Migration completed successfully!<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+          }
+        } else {
+          status.className = 'status error';
+          status.innerHTML = '❌ Migration failed<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        }
+      } catch (error) {
+        status.className = 'status error';
+        status.innerHTML = '❌ Network error: ' + error.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
+  `);
+}
