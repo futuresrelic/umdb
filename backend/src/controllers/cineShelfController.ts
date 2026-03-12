@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { asyncHandler, AppError } from '../middleware/errorHandler';
 import prisma from '../utils/prisma';
 import { EntryStatus, MediaType } from '@prisma/client';
+import tmdbService from '../services/tmdbService';
 
 /**
  * CineShelf API — TMDB-compatible endpoints at /api/v1/
@@ -910,19 +911,47 @@ async function findOrCreateMovie(payload: {
   }
 
   // 3. Create the movie
-  const resolvedMediaType = MEDIA_TYPE_MAP[(payload.media_type || 'movie').toLowerCase()] ?? MediaType.MOVIE;
+  // If tmdb_id is provided but metadata is missing, fetch full TMDB data
+  let enrichedPayload = { ...payload };
+  if (payload.tmdb_id && (!payload.poster_url || !payload.overview || !payload.runtime)) {
+    try {
+      const tmdbData = await tmdbService.getMovieDetails(Number(payload.tmdb_id));
+      console.log(`Enriching movie "${payload.title}" with TMDB data (ID: ${payload.tmdb_id})`);
+
+      // Merge TMDB data (payload takes precedence if already set)
+      enrichedPayload = {
+        ...payload,
+        poster_url: payload.poster_url || tmdbService.getPosterUrl(tmdbData.poster_path),
+        backdrop_url: payload.backdrop_url || tmdbService.getBackdropUrl(tmdbData.backdrop_path),
+        overview: payload.overview || tmdbData.overview,
+        runtime: payload.runtime || tmdbData.runtime,
+        rating: payload.rating || tmdbData.vote_average,
+        language: payload.language || tmdbData.original_language,
+        year: payload.year || (tmdbData.release_date ? new Date(tmdbData.release_date).getFullYear() : null),
+        // Extract director from credits if not provided
+        director: payload.director || tmdbData.credits?.crew?.find(c => c.job === 'Director')?.name,
+        // Extract genres as comma-separated string
+        genre: payload.genre || tmdbData.genres?.map(g => g.name).join(', '),
+      };
+    } catch (tmdbError) {
+      // TMDB fetch failed - continue with original payload
+      console.warn(`Failed to fetch TMDB data for ${payload.title} (${payload.tmdb_id}):`, tmdbError);
+    }
+  }
+
+  const resolvedMediaType = MEDIA_TYPE_MAP[(enrichedPayload.media_type || 'movie').toLowerCase()] ?? MediaType.MOVIE;
 
   const movie = await prisma.movie.create({
     data: {
-      title: payload.title,
-      year: payload.year ?? null,
-      plot: payload.overview ?? null,
-      runtime: payload.runtime ?? null,
-      rating: payload.rating ?? null,
-      language: payload.language ?? null,
-      country: payload.country ?? null,
-      posterUrl: payload.poster_url ?? null,
-      backdropUrl: payload.backdrop_url ?? null,
+      title: enrichedPayload.title,
+      year: enrichedPayload.year ?? null,
+      plot: enrichedPayload.overview ?? null,
+      runtime: enrichedPayload.runtime ?? null,
+      rating: enrichedPayload.rating ?? null,
+      language: enrichedPayload.language ?? null,
+      country: enrichedPayload.country ?? null,
+      posterUrl: enrichedPayload.poster_url ?? null,
+      backdropUrl: enrichedPayload.backdrop_url ?? null,
       mediaType: resolvedMediaType,
       sourceType: 'HYBRID',
       // API-submitted movies from a trusted source go straight to VERIFIED
@@ -943,8 +972,8 @@ async function findOrCreateMovie(payload: {
   }
 
   // Create director person + link if provided
-  if (payload.director) {
-    const directorName = payload.director.trim();
+  if (enrichedPayload.director) {
+    const directorName = enrichedPayload.director.trim();
     const person = await prisma.person.upsert({
       where: { imdbId: `umdb-dir-${directorName.toLowerCase().replace(/\s+/g, '-')}` },
       update: {},
@@ -959,8 +988,8 @@ async function findOrCreateMovie(payload: {
   }
 
   // Create genre links if provided (comma-separated string)
-  if (payload.genre) {
-    const genreNames = payload.genre.split(',').map((g: string) => g.trim()).filter(Boolean);
+  if (enrichedPayload.genre) {
+    const genreNames = enrichedPayload.genre.split(',').map((g: string) => g.trim()).filter(Boolean);
     for (const name of genreNames) {
       const genre = await prisma.genre.upsert({
         where: { name },
@@ -1206,7 +1235,13 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
   } catch (releaseError) {
     // Migration not yet run - box set created but releases not linked
     // This is OK, can be backfilled later with POST /box-sets/:id/create-releases
-    console.warn('Failed to create box set releases (migration may not be complete):', releaseError);
+    console.warn(
+      `⚠️  Box set created but releases not linked (migration needed): ${boxSet.id}`,
+      `\n    Box set: "${name}"`,
+      `\n    Movies: ${itemsData.filter(i => i.movieId).length}`,
+      `\n    Error: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`,
+      `\n    Backfill URL: POST /api/v1/box-sets/${boxSet.id}/create-releases`
+    );
   }
 
   // Re-fetch with items and releases
