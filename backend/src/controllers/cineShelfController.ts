@@ -1192,8 +1192,8 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
 
     itemsData.push({
       boxSetId: boxSet.id,
-      movieId: resolvedMovieId || undefined,
-      physicalCopyId: resolvedPhysicalCopyId || undefined,
+      movieId: resolvedMovieId || null,
+      physicalCopyId: resolvedPhysicalCopyId || null,
       discNumber: movieData.disc_number || null,
       discLabel: movieData.disc_label || null,
       isPresent: movieData.is_present ?? true,
