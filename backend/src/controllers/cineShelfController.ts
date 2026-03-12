@@ -1178,28 +1178,35 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
 
   // Create PhysicalCopy records for each movie in the box set
   // This makes the box set appear in each movie's releases list
-  const releasesData = [];
-  for (const item of itemsData) {
-    if (item.movieId) {
-      releasesData.push({
-        movieId: item.movieId,
-        format: (format ? resolveFormat(format) : 'OTHER') as any,
-        editionName: name,
-        edition: edition || null,
-        packageType: package_type || null,
-        region: region || null,
-        notes: notes || null,
-        coverImageUrl: cover_image || null,
-        isBoxSet: true,
-        boxSetId: boxSet.id,
-        boxSetPosition: item.position,
-        status: EntryStatus.VERIFIED,
-      });
+  // Wrapped in try-catch for backwards compatibility (schema may not be migrated yet)
+  try {
+    const releasesData = [];
+    for (const item of itemsData) {
+      if (item.movieId) {
+        releasesData.push({
+          movieId: item.movieId,
+          format: (format ? resolveFormat(format) : 'OTHER') as any,
+          editionName: name,
+          edition: edition || null,
+          packageType: package_type || null,
+          region: region || null,
+          notes: notes || null,
+          coverImageUrl: cover_image || null,
+          isBoxSet: true,
+          boxSetId: boxSet.id,
+          boxSetPosition: item.position,
+          status: EntryStatus.VERIFIED,
+        });
+      }
     }
-  }
 
-  if (releasesData.length > 0) {
-    await prisma.physicalCopy.createMany({ data: releasesData as any });
+    if (releasesData.length > 0) {
+      await prisma.physicalCopy.createMany({ data: releasesData as any });
+    }
+  } catch (releaseError) {
+    // Migration not yet run - box set created but releases not linked
+    // This is OK, can be backfilled later with POST /box-sets/:id/create-releases
+    console.warn('Failed to create box set releases (migration may not be complete):', releaseError);
   }
 
   // Re-fetch with items and releases
