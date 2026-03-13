@@ -55,8 +55,61 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Routes
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'UMDB API is running' });
+app.get('/api/health', async (req, res) => {
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+
+    // Check migrations
+    const migrations = await prisma.$queryRaw<any[]>`
+      SELECT migration_name, finished_at, rolled_back_at
+      FROM "_prisma_migrations"
+      ORDER BY started_at DESC
+      LIMIT 5;
+    `;
+
+    // Check if PhysicalCopy has box set columns
+    const columns = await prisma.$queryRaw<any[]>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'PhysicalCopy'
+        AND column_name IN ('isBoxSet', 'boxSetId', 'discNumber', 'discLabel');
+    `;
+
+    // Count records
+    const counts = {
+      physicalCopy: await prisma.physicalCopy.count(),
+      boxSet: await prisma.boxSet.count(),
+      boxSetItem: await prisma.boxSetItem.count(),
+    };
+
+    await prisma.$disconnect();
+
+    res.json({
+      status: 'ok',
+      message: 'UMDB API is running',
+      database: {
+        connected: true,
+        migrations: migrations.map(m => ({
+          name: m.migration_name,
+          finished: m.finished_at,
+          rolledBack: m.rolled_back_at,
+        })),
+        boxSetColumnsExist: columns.length === 4,
+        columnCount: columns.length,
+        columns: columns.map(c => c.column_name),
+      },
+      counts,
+    });
+  } catch (error) {
+    res.json({
+      status: 'ok',
+      message: 'UMDB API is running',
+      database: {
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 });
 
 app.use('/api/auth', authRoutes);

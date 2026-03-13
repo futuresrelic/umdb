@@ -1066,19 +1066,25 @@ function formatBoxSet(boxSet: any) {
     spine_image: boxSet.spineImageUrl || null,
     movies: (boxSet.items || [])
       .sort((a: any, b: any) => a.position - b.position)
-      .map((item: any) => ({
-        tmdb_id: item.movie?.tmdbId || null,
-        umdb_movie_id: item.movie ? toUmdbId(item.movie.id) : null,
-        disc_number: item.discNumber || null,
-        disc_label: item.discLabel || null,
-        is_present: item.isPresent ?? true,
-        position: item.position,
-        umdb_release_id: item.physicalCopyId ? `rel-${item.physicalCopyId}` : null,
-        id: item.movie ? toUmdbId(item.movie.id) : null,
-        title: item.movie?.title || null,
-        year: item.movie?.year || null,
-        poster_path: item.movie?.posterUrl || null,
-      })),
+      .map((item: any) => {
+        // Extract TMDB ID from ExternalMatch
+        const tmdbMatch = item.movie?.externalMatches?.find((m: any) => m.source === 'TMDB');
+        const tmdbId = tmdbMatch?.externalId || null;
+
+        return {
+          tmdb_id: tmdbId,
+          umdb_movie_id: item.movie ? toUmdbId(item.movie.id) : null,
+          disc_number: item.discNumber || null,
+          disc_label: item.discLabel || null,
+          is_present: item.isPresent ?? true,
+          position: item.position,
+          umdb_release_id: item.physicalCopyId ? `rel-${item.physicalCopyId}` : null,
+          id: item.movie ? toUmdbId(item.movie.id) : null,
+          title: item.movie?.title || null,
+          year: item.movie?.year || null,
+          poster_path: item.movie?.posterUrl || null,
+        };
+      }),
   };
 }
 
@@ -1266,6 +1272,31 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
     if (releasesData.length > 0) {
       const result = await prisma.physicalCopy.createMany({ data: releasesData as any });
       console.log('✅ PhysicalCopy.createMany SUCCESS:', result);
+      console.log(`✅ Created ${result.count} PhysicalCopy records`);
+
+      // CRITICAL: Re-query to get the IDs of created records
+      const createdCopies = await prisma.physicalCopy.findMany({
+        where: { boxSetId: boxSet.id },
+        select: { id: true, movieId: true },
+      });
+      console.log('✅ Created PhysicalCopy IDs:', createdCopies);
+
+      // CRITICAL: Update BoxSetItems with physicalCopyId so they link back
+      console.log('🔗 Linking PhysicalCopy records back to BoxSetItems...');
+      for (const copy of createdCopies) {
+        const item = itemsData.find(i => i.movieId === copy.movieId);
+        if (item) {
+          await prisma.boxSetItem.updateMany({
+            where: {
+              boxSetId: boxSet.id,
+              movieId: copy.movieId,
+              physicalCopyId: null, // Only update items that don't already have a physicalCopyId
+            },
+            data: { physicalCopyId: copy.id },
+          });
+          console.log(`  ✅ Linked PhysicalCopy ${copy.id} to BoxSetItem for movie ${copy.movieId}`);
+        }
+      }
     } else {
       console.log('⚠️  No PhysicalCopy records to create (no movieIds)');
     }
@@ -1289,7 +1320,15 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
     include: {
       items: {
         include: {
-          movie: { select: { id: true, title: true, year: true, posterUrl: true } },
+          movie: {
+            select: {
+              id: true,
+              title: true,
+              year: true,
+              posterUrl: true,
+              externalMatches: { select: { source: true, externalId: true } },
+            },
+          },
         },
         orderBy: { position: 'asc' },
       },
