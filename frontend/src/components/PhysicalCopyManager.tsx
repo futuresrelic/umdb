@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
+import BoxSetModal from './BoxSetModal';
 
 interface Movie {
   id: string;
@@ -1180,6 +1181,7 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [boxSetModalId, setBoxSetModalId] = useState<string | null>(null);
 
   useEffect(() => {
     loadCopies();
@@ -1378,12 +1380,12 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
                         <div className="text-sm font-medium text-purple-900 mb-1">
                           📦 Part of a Box Set
                           {copy.boxSetId && (
-                            <a
-                              href={`/box-sets/boxset-${copy.boxSetId}`}
-                              className="ml-2 text-purple-600 hover:text-purple-800 underline"
+                            <button
+                              onClick={() => setBoxSetModalId(copy.boxSetId!)}
+                              className="ml-2 text-purple-600 hover:text-purple-800 underline cursor-pointer"
                             >
                               View Box Set
-                            </a>
+                            </button>
                           )}
                         </div>
                         {copy.discNumber && (
@@ -1482,6 +1484,11 @@ function PhysicalCopyManager({ movieId, canEdit = true }: Props) {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Box Set Modal */}
+      {boxSetModalId && (
+        <BoxSetModal boxSetId={boxSetModalId} onClose={() => setBoxSetModalId(null)} />
       )}
     </div>
   );

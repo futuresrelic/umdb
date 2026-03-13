@@ -226,4 +226,12 @@ export const userApi = {
   },
 };
 
+// Box Sets
+export const boxSetApi = {
+  getBoxSet: async (id: string) => {
+    const response = await api.get(`/box-sets/${id}`);
+    return response.data;
+  },
+};
+
 export default api;

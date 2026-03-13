@@ -18,6 +18,7 @@ import cineShelfRoutes from './routes/cineShelfRoutes';
 import imageRoutes from './routes/imageRoutes';
 import iconRoutes from './routes/iconRoutes';
 import diagnosticsRoutes from './routes/diagnostics';
+import boxSetRoutes from './routes/boxSetRoutes';
 
 // Force redeploy with latest schema and routes
 
@@ -126,6 +127,7 @@ app.use('/api/v1', cineShelfRoutes);
 app.use('/api/images', imageRoutes);
 app.use('/api/icons', iconRoutes);
 app.use('/api/diagnostics', diagnosticsRoutes);
+app.use('/api/box-sets', boxSetRoutes);
 
 // Error handling
 app.use(errorHandler);
