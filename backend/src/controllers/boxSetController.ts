@@ -21,7 +21,7 @@ export async function getBoxSet(req: Request, res: Response): Promise<void> {
                 posterUrl: true,
                 backdropUrl: true,
                 tagline: true,
-                overview: true,
+                plot: true,
                 rating: true,
                 runtime: true,
               },

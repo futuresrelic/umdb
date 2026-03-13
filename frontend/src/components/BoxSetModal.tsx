@@ -8,7 +8,7 @@ interface BoxSetMovie {
   year: number | null;
   posterUrl: string | null;
   tagline: string | null;
-  overview: string | null;
+  plot: string | null;
   rating: number | null;
   runtime: number | null;
 }
