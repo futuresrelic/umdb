@@ -1084,6 +1084,13 @@ function formatBoxSet(boxSet: any) {
 
 // POST /v1/box-sets — Create a new box set
 export const createBoxSet = asyncHandler(async (req: Request, res: Response) => {
+  // 🔍 DEBUG: Log full incoming request
+  console.log('\n🎬 === POST /box-sets REQUEST ===');
+  console.log('📦 Box Set Name:', req.body.name);
+  console.log('📀 Format:', req.body.format);
+  console.log('🎥 Movies Count:', req.body.movies?.length || 0);
+  console.log('📋 Full Request Body:', JSON.stringify(req.body, null, 2));
+
   const {
     name,
     format,
@@ -1152,14 +1159,21 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
 
   // Create box set items (movies)
   const itemsData = [];
+  console.log('\n🎬 === PROCESSING MOVIES ===');
   for (let i = 0; i < movies.length; i++) {
     const movieData = movies[i];
+    console.log(`\n📽️  Movie ${i + 1}/${movies.length}:`, movieData.title);
+    console.log('  - TMDB ID:', movieData.tmdb_id || 'none');
+    console.log('  - Disc #:', movieData.disc_number);
+    console.log('  - Disc Label:', movieData.disc_label);
+
     let resolvedMovieId: string | null = null;
     let resolvedPhysicalCopyId: string | null = null;
 
     // If umdb_release_id provided, use it
     if (movieData.umdb_release_id) {
       resolvedPhysicalCopyId = movieData.umdb_release_id.replace(/^rel-/, '');
+      console.log('  ✅ Using existing PhysicalCopy ID:', resolvedPhysicalCopyId);
     }
 
     // Resolve or create movie
@@ -1181,6 +1195,7 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
         country: movieData.country,
       });
       resolvedMovieId = movie.id;
+      console.log('  ✅ Movie created/found:', resolvedMovieId);
     }
 
     if (!resolvedMovieId && !resolvedPhysicalCopyId) {
@@ -1208,11 +1223,12 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
   // Create PhysicalCopy records for each movie in the box set
   // This makes the box set appear in each movie's releases list
   // Wrapped in try-catch for backwards compatibility (schema may not be migrated yet)
+  console.log('\n💿 === CREATING PHYSICAL COPIES ===');
   try {
     const releasesData = [];
     for (const item of itemsData) {
       if (item.movieId) {
-        releasesData.push({
+        const releaseData = {
           movieId: item.movieId,
           format: (format ? resolveFormat(format) : 'OTHER') as any,
           editionName: name,
@@ -1234,23 +1250,37 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
           discNumber: item.discNumber || null,
           discLabel: item.discLabel || null,
           status: EntryStatus.VERIFIED,
+        };
+        console.log(`  📀 Preparing PhysicalCopy for ${item.movieId}:`, {
+          discNumber: releaseData.discNumber,
+          discLabel: releaseData.discLabel,
+          isBoxSet: releaseData.isBoxSet,
         });
+        releasesData.push(releaseData);
       }
     }
 
+    console.log(`\n🔨 Calling PhysicalCopy.createMany with ${releasesData.length} records...`);
+    console.log('📋 Full releasesData:', JSON.stringify(releasesData, null, 2));
+
     if (releasesData.length > 0) {
-      await prisma.physicalCopy.createMany({ data: releasesData as any });
+      const result = await prisma.physicalCopy.createMany({ data: releasesData as any });
+      console.log('✅ PhysicalCopy.createMany SUCCESS:', result);
+    } else {
+      console.log('⚠️  No PhysicalCopy records to create (no movieIds)');
     }
   } catch (releaseError) {
     // Migration not yet run - box set created but releases not linked
     // This is OK, can be backfilled later with POST /box-sets/:id/create-releases
-    console.warn(
-      `⚠️  Box set created but releases not linked (migration needed): ${boxSet.id}`,
-      `\n    Box set: "${name}"`,
-      `\n    Movies: ${itemsData.filter(i => i.movieId).length}`,
-      `\n    Error: ${releaseError instanceof Error ? releaseError.message : String(releaseError)}`,
-      `\n    Backfill URL: POST /api/v1/box-sets/${boxSet.id}/create-releases`
-    );
+    console.error('\n❌ === PHYSICAL COPY CREATION FAILED ===');
+    console.error('Error Type:', releaseError instanceof Error ? releaseError.constructor.name : typeof releaseError);
+    console.error('Error Message:', releaseError instanceof Error ? releaseError.message : String(releaseError));
+    console.error('Error Stack:', releaseError instanceof Error ? releaseError.stack : 'No stack trace');
+    console.error('Box Set ID:', boxSet.id);
+    console.error('Box Set Name:', name);
+    console.error('Movies to link:', itemsData.filter(i => i.movieId).length);
+    console.error('Backfill URL:', `POST /api/v1/box-sets/${boxSet.id}/create-releases`);
+    console.error('=================================\n');
   }
 
   // Re-fetch with items and releases
