@@ -190,6 +190,32 @@ export const adminApi = {
     const response = await api.get('/admin/users');
     return response.data;
   },
+
+  // Box Set Admin APIs
+  getBoxSets: async () => {
+    const response = await api.get('/admin/box-sets');
+    return response.data;
+  },
+
+  deleteBoxSet: async (id: string) => {
+    const response = await api.delete(`/admin/box-sets/${id}`);
+    return response.data;
+  },
+
+  backfillBoxSet: async (id: string) => {
+    const response = await api.post(`/admin/box-sets/${id}/backfill`);
+    return response.data;
+  },
+
+  backfillAllBoxSets: async () => {
+    const response = await api.post('/admin/box-sets/backfill-all');
+    return response.data;
+  },
+
+  deleteAllBoxSets: async () => {
+    const response = await api.delete('/admin/box-sets');
+    return response.data;
+  },
 };
 
 // User submissions

@@ -11,6 +11,11 @@ import {
   getAllMoviesAdmin,
   getUsers,
   setUserRole,
+  getAllBoxSets,
+  deleteBoxSet,
+  backfillBoxSet,
+  backfillAllBoxSets,
+  deleteAllBoxSets,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -27,5 +32,12 @@ router.post('/physical-copies/:id/verify', verifyPhysicalCopy);
 router.post('/physical-copies/:id/reject', rejectPhysicalCopy);
 router.get('/users', getUsers);
 router.put('/users/:id/role', setUserRole);
+
+// Box Set Admin Endpoints
+router.get('/box-sets', getAllBoxSets);
+router.delete('/box-sets/:id', deleteBoxSet);
+router.post('/box-sets/:id/backfill', backfillBoxSet);
+router.post('/box-sets/backfill-all', backfillAllBoxSets);
+router.delete('/box-sets', deleteAllBoxSets);
 
 export default router;

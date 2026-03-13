@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../services/api';
 import IconEditor from '../components/IconEditor';
 
-type AdminTab = 'queue' | 'icons';
+type AdminTab = 'queue' | 'icons' | 'boxsets';
 
 interface PendingMovie {
   id: string;
@@ -44,6 +44,17 @@ interface AdminStats {
   totalUsers: number;
 }
 
+interface BoxSet {
+  id: string;
+  name: string;
+  format: string | null;
+  region: string | null;
+  movieCount: number;
+  physicalCopiesLinked: number;
+  createdAt: string;
+  movies: string[];
+}
+
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -57,6 +68,10 @@ export default function AdminPage() {
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('queue');
+  const [boxSets, setBoxSets] = useState<BoxSet[]>([]);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [backfillAllConfirm, setBackfillAllConfirm] = useState(false);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
 
   const loadData = async () => {
     try {
@@ -71,6 +86,21 @@ export default function AdminPage() {
       setLoading(false);
     }
   };
+
+  const loadBoxSets = async () => {
+    try {
+      const data = await adminApi.getBoxSets();
+      setBoxSets(data.boxSets);
+    } catch (err) {
+      console.error('Failed to load box sets:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'boxsets') {
+      loadBoxSets();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!user || !isAdmin) return;
@@ -154,6 +184,7 @@ export default function AdminPage() {
       <div className="flex border-b border-gray-200 mb-8 gap-1">
         {([
           { id: 'queue' as AdminTab, label: '📋 Verification Queue' },
+          { id: 'boxsets' as AdminTab, label: '📦 Box Sets' },
           { id: 'icons' as AdminTab, label: '🎨 App Icons' },
         ]).map(tab => (
           <button
@@ -167,6 +198,103 @@ export default function AdminPage() {
           >{tab.label}</button>
         ))}
       </div>
+
+      {/* ── Box Sets tab ── */}
+      {activeTab === 'boxsets' && (
+        <div>
+          {/* Summary */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="text-2xl font-bold text-blue-700">{boxSets.length}</div>
+            <div className="text-xs text-blue-600 mt-1">Total Box Sets</div>
+          </div>
+
+          {/* Global Actions */}
+          <div className="flex gap-3 mb-6">
+            <button
+              onClick={() => setBackfillAllConfirm(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+            >
+              🔧 Backfill All Broken
+            </button>
+            <button
+              onClick={() => setDeleteAllConfirm(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
+            >
+              🗑️ Delete All (Nuclear)
+            </button>
+          </div>
+
+          {/* Box Sets Table */}
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Format</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Movies</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PhysicalCopies Linked</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {boxSets.map(boxSet => (
+                  <tr key={boxSet.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{boxSet.name}</div>
+                      <div className="text-xs text-gray-400 font-mono">{boxSet.id}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {boxSet.format || '—'}
+                      {boxSet.region && <div className="text-xs text-gray-400">{boxSet.region}</div>}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{boxSet.movieCount}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`text-sm font-medium ${
+                        boxSet.physicalCopiesLinked === boxSet.movieCount
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }`}>
+                        {boxSet.physicalCopiesLinked}/{boxSet.movieCount}
+                      </span>
+                      {boxSet.physicalCopiesLinked < boxSet.movieCount && (
+                        <span className="ml-2 text-xs text-red-500">⚠️ Broken</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(boxSet.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex gap-2">
+                        {boxSet.physicalCopiesLinked < boxSet.movieCount && (
+                          <button
+                            onClick={async () => {
+                              setActionLoading(boxSet.id);
+                              await adminApi.backfillBoxSet(boxSet.id);
+                              await loadBoxSets();
+                              setActionLoading(null);
+                            }}
+                            disabled={actionLoading === boxSet.id}
+                            className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-xs"
+                          >
+                            🔧 Fix
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setDeleteConfirm({ id: boxSet.id, name: boxSet.name })}
+                          className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── App Icons tab ── */}
       {activeTab === 'icons' && (
@@ -380,6 +508,108 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => { setMergeModal(null); setMergeTargetId(''); }}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Box Set Confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Box Set?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Are you sure you want to delete <span className="font-medium">"{deleteConfirm.name}"</span>?
+              This will also delete all BoxSetItems. PhysicalCopy records will remain but be unlinked.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setActionLoading(deleteConfirm.id);
+                  await adminApi.deleteBoxSet(deleteConfirm.id);
+                  setDeleteConfirm(null);
+                  await loadBoxSets();
+                  setActionLoading(null);
+                }}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backfill All Confirmation */}
+      {backfillAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Backfill All Box Sets?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will create missing PhysicalCopy records for all box sets where any BoxSetItem has physicalCopyId = null.
+              Safe to run - only creates what's missing.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setActionLoading('backfill-all');
+                  await adminApi.backfillAllBoxSets();
+                  setBackfillAllConfirm(false);
+                  await loadBoxSets();
+                  setActionLoading(null);
+                }}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium"
+              >
+                Backfill All
+              </button>
+              <button
+                onClick={() => setBackfillAllConfirm(false)}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Confirmation */}
+      {deleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-red-600 mb-2">⚠️ Nuclear Option</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will <span className="font-bold text-red-600">DELETE ALL BOX SETS</span> and their BoxSetItems.
+              This cannot be undone!
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setActionLoading('delete-all');
+                  await adminApi.deleteAllBoxSets();
+                  setDeleteAllConfirm(false);
+                  await loadBoxSets();
+                  setActionLoading(null);
+                }}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                Yes, Delete All
+              </button>
+              <button
+                onClick={() => setDeleteAllConfirm(false)}
                 className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Cancel

@@ -328,3 +328,254 @@ export function adminMigrationsPage(req: Request, res: Response): void {
 </html>
   `);
 }
+
+// ============================================================================
+// BOX SET ADMIN ENDPOINTS
+// ============================================================================
+
+// GET /api/admin/box-sets - List all box sets with PhysicalCopy link stats
+export async function getAllBoxSets(req: Request, res: Response): Promise<void> {
+  try {
+    const boxSets = await prisma.boxSet.findMany({
+      include: {
+        items: {
+          select: {
+            id: true,
+            movieId: true,
+            physicalCopyId: true,
+            movie: { select: { title: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const boxSetsWithStats = boxSets.map(boxSet => ({
+      id: boxSet.id,
+      name: boxSet.name,
+      format: boxSet.format,
+      region: boxSet.region,
+      movieCount: boxSet.items.length,
+      physicalCopiesLinked: boxSet.items.filter(item => item.physicalCopyId !== null).length,
+      createdAt: boxSet.createdAt,
+      movies: boxSet.items.map(item => item.movie?.title).filter(Boolean),
+    }));
+
+    res.json({ boxSets: boxSetsWithStats });
+  } catch (err) {
+    console.error('Failed to get box sets:', err);
+    res.status(500).json({ error: 'Failed to get box sets' });
+  }
+}
+
+// DELETE /api/admin/box-sets/:id - Delete a single box set
+export async function deleteBoxSet(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    console.log(`🗑️  Admin deleting box set: ${id}`);
+
+    // Prisma will cascade delete BoxSetItems and set PhysicalCopy.boxSetId to null
+    await prisma.boxSet.delete({ where: { id } });
+
+    console.log(`✅ Deleted box set: ${id}`);
+    res.json({ success: true, message: 'Box set deleted' });
+  } catch (err) {
+    console.error('Failed to delete box set:', err);
+    res.status(500).json({ error: 'Failed to delete box set' });
+  }
+}
+
+// POST /api/admin/box-sets/:id/backfill - Backfill PhysicalCopy for one box set
+export async function backfillBoxSet(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+
+    console.log(`🔧 Backfilling box set: ${id}`);
+
+    const boxSet = await prisma.boxSet.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            movie: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+
+    if (!boxSet) {
+      res.status(404).json({ error: 'Box set not found' });
+      return;
+    }
+
+    // Find items that need PhysicalCopy records (physicalCopyId is null)
+    const itemsNeedingBackfill = boxSet.items.filter(
+      item => item.movieId && !item.physicalCopyId
+    );
+
+    if (itemsNeedingBackfill.length === 0) {
+      res.json({
+        success: true,
+        message: 'No backfill needed - all items already have PhysicalCopy records',
+        backfilled: 0,
+      });
+      return;
+    }
+
+    // Create PhysicalCopy records
+    const releasesData = itemsNeedingBackfill.map(item => ({
+      movieId: item.movieId!,
+      format: 'OTHER' as any,
+      editionName: boxSet.name,
+      edition: boxSet.edition || null,
+      packageType: boxSet.packageType || null,
+      region: boxSet.region || null,
+      notes: boxSet.notes || null,
+      coverImageUrl: boxSet.coverImageUrl || null,
+      isBoxSet: true,
+      boxSetId: boxSet.id,
+      boxSetPosition: item.position,
+      hasSlipcover: boxSet.hasSlipcover ?? false,
+      hasBooklet: boxSet.hasBooklet ?? false,
+      hasBonusDisc: boxSet.hasBonusDisc ?? false,
+      bonusDiscCount: boxSet.bonusDiscCount || null,
+      hasDigitalCopy: boxSet.hasDigitalCopy ?? false,
+      has3d: boxSet.has3d ?? false,
+      discNumber: item.discNumber || null,
+      discLabel: item.discLabel || null,
+      status: EntryStatus.VERIFIED,
+    }));
+
+    await prisma.physicalCopy.createMany({ data: releasesData });
+
+    // Get created PhysicalCopy IDs
+    const createdCopies = await prisma.physicalCopy.findMany({
+      where: { boxSetId: boxSet.id },
+      select: { id: true, movieId: true },
+    });
+
+    // Link them back to BoxSetItems
+    for (const copy of createdCopies) {
+      await prisma.boxSetItem.updateMany({
+        where: {
+          boxSetId: boxSet.id,
+          movieId: copy.movieId,
+          physicalCopyId: null,
+        },
+        data: { physicalCopyId: copy.id },
+      });
+    }
+
+    console.log(`✅ Backfilled ${itemsNeedingBackfill.length} PhysicalCopy records for box set: ${id}`);
+    res.json({
+      success: true,
+      message: `Backfilled ${itemsNeedingBackfill.length} PhysicalCopy records`,
+      backfilled: itemsNeedingBackfill.length,
+    });
+  } catch (err) {
+    console.error('Failed to backfill box set:', err);
+    res.status(500).json({ error: 'Failed to backfill box set' });
+  }
+}
+
+// POST /api/admin/box-sets/backfill-all - Backfill all box sets
+export async function backfillAllBoxSets(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('🔧 Backfilling ALL box sets...');
+
+    const boxSets = await prisma.boxSet.findMany({
+      include: {
+        items: {
+          include: {
+            movie: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    let totalBackfilled = 0;
+
+    for (const boxSet of boxSets) {
+      const itemsNeedingBackfill = boxSet.items.filter(
+        item => item.movieId && !item.physicalCopyId
+      );
+
+      if (itemsNeedingBackfill.length === 0) continue;
+
+      // Create PhysicalCopy records
+      const releasesData = itemsNeedingBackfill.map(item => ({
+        movieId: item.movieId!,
+        format: 'OTHER' as any,
+        editionName: boxSet.name,
+        edition: boxSet.edition || null,
+        packageType: boxSet.packageType || null,
+        region: boxSet.region || null,
+        notes: boxSet.notes || null,
+        coverImageUrl: boxSet.coverImageUrl || null,
+        isBoxSet: true,
+        boxSetId: boxSet.id,
+        boxSetPosition: item.position,
+        hasSlipcover: boxSet.hasSlipcover ?? false,
+        hasBooklet: boxSet.hasBooklet ?? false,
+        hasBonusDisc: boxSet.hasBonusDisc ?? false,
+        bonusDiscCount: boxSet.bonusDiscCount || null,
+        hasDigitalCopy: boxSet.hasDigitalCopy ?? false,
+        has3d: boxSet.has3d ?? false,
+        discNumber: item.discNumber || null,
+        discLabel: item.discLabel || null,
+        status: EntryStatus.VERIFIED,
+      }));
+
+      await prisma.physicalCopy.createMany({ data: releasesData });
+
+      // Get created PhysicalCopy IDs
+      const createdCopies = await prisma.physicalCopy.findMany({
+        where: { boxSetId: boxSet.id },
+        select: { id: true, movieId: true },
+      });
+
+      // Link them back to BoxSetItems
+      for (const copy of createdCopies) {
+        await prisma.boxSetItem.updateMany({
+          where: {
+            boxSetId: boxSet.id,
+            movieId: copy.movieId,
+            physicalCopyId: null,
+          },
+          data: { physicalCopyId: copy.id },
+        });
+      }
+
+      totalBackfilled += itemsNeedingBackfill.length;
+      console.log(`  ✅ Backfilled ${itemsNeedingBackfill.length} for "${boxSet.name}"`);
+    }
+
+    console.log(`✅ Total backfilled: ${totalBackfilled} PhysicalCopy records`);
+    res.json({
+      success: true,
+      message: `Backfilled ${totalBackfilled} PhysicalCopy records across ${boxSets.length} box sets`,
+      totalBackfilled,
+      boxSetsProcessed: boxSets.length,
+    });
+  } catch (err) {
+    console.error('Failed to backfill all box sets:', err);
+    res.status(500).json({ error: 'Failed to backfill all box sets' });
+  }
+}
+
+// DELETE /api/admin/box-sets - Delete ALL box sets (nuclear option)
+export async function deleteAllBoxSets(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('🗑️  Admin deleting ALL box sets (nuclear option)');
+
+    const count = await prisma.boxSet.count();
+    await prisma.boxSet.deleteMany({});
+
+    console.log(`✅ Deleted ${count} box sets`);
+    res.json({ success: true, message: `Deleted ${count} box sets` });
+  } catch (err) {
+    console.error('Failed to delete all box sets:', err);
+    res.status(500).json({ error: 'Failed to delete all box sets' });
+  }
+}
