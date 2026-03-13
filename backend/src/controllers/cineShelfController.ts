@@ -1542,11 +1542,25 @@ export const createBoxSetReleases = asyncHandler(async (req: Request, res: Respo
   // Create the releases
   await prisma.physicalCopy.createMany({ data: releasesData as any });
 
-  // Fetch created releases
+  // Fetch created releases with movieId
   const createdReleases = await prisma.physicalCopy.findMany({
     where: { boxSetId: boxSet.id },
-    select: { id: true },
+    select: { id: true, movieId: true },
   });
+
+  // CRITICAL: Link PhysicalCopy records back to BoxSetItems
+  console.log('🔗 Linking PhysicalCopy records to BoxSetItems...');
+  for (const release of createdReleases) {
+    await prisma.boxSetItem.updateMany({
+      where: {
+        boxSetId: boxSet.id,
+        movieId: release.movieId,
+        physicalCopyId: null, // Only update items without a physicalCopyId
+      },
+      data: { physicalCopyId: release.id },
+    });
+    console.log(`  ✅ Linked PhysicalCopy ${release.id} to BoxSetItem for movie ${release.movieId}`);
+  }
 
   res.status(201).json({
     message: 'Releases created successfully',
