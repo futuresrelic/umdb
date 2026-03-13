@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && npx prisma db push --accept-data-loss && npx tsx prisma/migrations/seed-verified-status.ts && npm start"
+cmd = "cd backend && npx prisma migrate resolve --applied 20260312000000_add_boxset_fields_to_physical_copy || true && npx prisma migrate deploy && npx tsx prisma/migrations/seed-verified-status.ts && npm start"
