@@ -910,7 +910,46 @@ async function findOrCreateMovie(payload: {
     if (match) return { movie: match.movie, created: false };
   }
 
-  // 3. Create the movie
+  // 3. Try to find by title + year (fuzzy match to catch CSV imports)
+  if (payload.title && payload.year) {
+    const match = await prisma.movie.findFirst({
+      where: {
+        title: { equals: payload.title, mode: 'insensitive' },
+        year: payload.year,
+      },
+    });
+    if (match) {
+      console.log(`  🔗 Found existing movie by title+year: "${match.title}" (${match.year}) - ID: ${match.id}`);
+
+      // Link the TMDB/IMDB IDs if provided and not already linked
+      const externalMatchData: any[] = [];
+      if (payload.tmdb_id) {
+        const existingTmdb = await prisma.externalMatch.findFirst({
+          where: { movieId: match.id, source: 'TMDB' },
+        });
+        if (!existingTmdb) {
+          externalMatchData.push({ movieId: match.id, source: 'TMDB', externalId: String(payload.tmdb_id) });
+          console.log(`    ✅ Linking TMDB ID ${payload.tmdb_id} to existing movie`);
+        }
+      }
+      if (payload.imdb_id) {
+        const existingImdb = await prisma.externalMatch.findFirst({
+          where: { movieId: match.id, source: 'IMDB' },
+        });
+        if (!existingImdb) {
+          externalMatchData.push({ movieId: match.id, source: 'IMDB', externalId: String(payload.imdb_id) });
+          console.log(`    ✅ Linking IMDB ID ${payload.imdb_id} to existing movie`);
+        }
+      }
+      if (externalMatchData.length > 0) {
+        await prisma.externalMatch.createMany({ data: externalMatchData });
+      }
+
+      return { movie: match, created: false };
+    }
+  }
+
+  // 4. Create the movie
   // If tmdb_id is provided but metadata is missing, fetch full TMDB data
   let enrichedPayload = { ...payload };
   if (payload.tmdb_id && (!payload.poster_url || !payload.overview || !payload.runtime)) {
