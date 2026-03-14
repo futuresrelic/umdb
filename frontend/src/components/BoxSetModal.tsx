@@ -3,22 +3,19 @@ import { Link } from 'react-router-dom';
 import { boxSetApi } from '../services/api';
 
 interface BoxSetMovie {
-  id: string;
-  title: string;
-  year: number | null;
-  posterUrl: string | null;
-  tagline: string | null;
-  plot: string | null;
-  rating: number | null;
-  runtime: number | null;
-}
-
-interface BoxSetItem {
-  id: string;
+  id: string | null;
+  boxSetItemId: string;
+  title?: string;
+  year?: number;
+  posterUrl?: string | null;
+  plot?: string | null;
+  rating?: number | null;
+  runtime?: number | null;
   position: number;
   discNumber: number | null;
   discLabel: string | null;
-  movie: BoxSetMovie;
+  isPresent: boolean;
+  physicalCopyId: string | null;
 }
 
 interface BoxSet {
@@ -30,7 +27,15 @@ interface BoxSet {
   packageType: string | null;
   notes: string | null;
   coverImageUrl: string | null;
-  items: BoxSetItem[];
+  spineImageUrl: string | null;
+  hasSlipcover: boolean;
+  hasBooklet: boolean;
+  hasBonusDisc: boolean;
+  bonusDiscCount: number | null;
+  hasDigitalCopy: boolean;
+  has3d: boolean;
+  movies: BoxSetMovie[];
+  releases?: Array<{ id: string; movieId: string | null }>;
 }
 
 interface Props {
@@ -108,20 +113,20 @@ export default function BoxSetModal({ boxSetId, onClose }: Props) {
         {/* Movies Grid */}
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Movies in this Box Set ({boxSet.items.length})
+            Movies in this Box Set ({boxSet.movies.length})
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {boxSet.items.map((item) => (
+            {boxSet.movies.map((movie) => (
               <Link
-                key={item.id}
-                to={`/movie/${item.movie.id}`}
+                key={movie.boxSetItemId}
+                to={`/movie/${movie.id}`}
                 onClick={onClose}
                 className="group bg-gray-50 rounded-lg overflow-hidden hover:shadow-md transition border border-gray-200 hover:border-blue-400"
               >
-                {item.movie.posterUrl ? (
+                {movie.posterUrl ? (
                   <img
-                    src={item.movie.posterUrl}
-                    alt={item.movie.title}
+                    src={movie.posterUrl}
+                    alt={movie.title}
                     className="w-full aspect-[2/3] object-cover"
                   />
                 ) : (
@@ -131,14 +136,14 @@ export default function BoxSetModal({ boxSetId, onClose }: Props) {
                 )}
                 <div className="p-3">
                   <div className="font-medium text-gray-900 group-hover:text-blue-600 line-clamp-2">
-                    {item.movie.title}
+                    {movie.title}
                   </div>
-                  {item.movie.year && (
-                    <div className="text-sm text-gray-500 mt-0.5">{item.movie.year}</div>
+                  {movie.year && (
+                    <div className="text-sm text-gray-500 mt-0.5">{movie.year}</div>
                   )}
-                  {item.discNumber && (
+                  {movie.discNumber && (
                     <div className="text-xs text-purple-600 mt-1">
-                      Disc {item.discNumber}{item.discLabel && `: ${item.discLabel}`}
+                      Disc {movie.discNumber}{movie.discLabel && `: ${movie.discLabel}`}
                     </div>
                   )}
                 </div>
