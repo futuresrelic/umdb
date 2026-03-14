@@ -623,3 +623,59 @@ export async function clearCineShelfData(req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Failed to clear CineShelf data' });
   }
 }
+
+// DELETE /api/admin/all-data - NUCLEAR RESET: Clear EVERYTHING
+export async function clearAllData(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('💣 NUCLEAR RESET: Clearing ALL data from UMDB');
+
+    // Delete in correct order to avoid foreign key constraints
+
+    // 1. Delete all box sets (cascades to BoxSetItems)
+    const boxSetCount = await prisma.boxSet.count();
+    await prisma.boxSet.deleteMany({});
+    console.log(`  ✅ Deleted ${boxSetCount} box sets`);
+
+    // 2. Delete all physical copies
+    const physicalCopyCount = await prisma.physicalCopy.deleteMany({});
+    console.log(`  ✅ Deleted ${physicalCopyCount.count} physical copies`);
+
+    // 3. Delete all movie-person relationships
+    const moviePersonCount = await prisma.moviePerson.deleteMany({});
+    console.log(`  ✅ Deleted ${moviePersonCount.count} movie-person relationships`);
+
+    // 4. Delete all movie-genre relationships
+    const movieGenreCount = await prisma.movieGenre.deleteMany({});
+    console.log(`  ✅ Deleted ${movieGenreCount.count} movie-genre relationships`);
+
+    // 5. Delete all external matches
+    const externalMatchCount = await prisma.externalMatch.deleteMany({});
+    console.log(`  ✅ Deleted ${externalMatchCount.count} external matches`);
+
+    // 6. Delete all movies
+    const movieCount = await prisma.movie.deleteMany({});
+    console.log(`  ✅ Deleted ${movieCount.count} movies`);
+
+    // 7. Delete all persons (actors/directors)
+    const personCount = await prisma.person.deleteMany({});
+    console.log(`  ✅ Deleted ${personCount.count} persons`);
+
+    console.log('💣 NUCLEAR RESET COMPLETE: Database is now empty');
+    res.json({
+      success: true,
+      message: 'All data cleared - database is now empty',
+      deleted: {
+        boxSets: boxSetCount,
+        physicalCopies: physicalCopyCount.count,
+        moviePersons: moviePersonCount.count,
+        movieGenres: movieGenreCount.count,
+        externalMatches: externalMatchCount.count,
+        movies: movieCount.count,
+        persons: personCount.count,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to clear all data:', err);
+    res.status(500).json({ error: 'Failed to clear all data' });
+  }
+}

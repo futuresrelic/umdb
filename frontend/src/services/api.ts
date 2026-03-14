@@ -221,6 +221,11 @@ export const adminApi = {
     const response = await api.delete('/admin/cineshelf-data');
     return response.data;
   },
+
+  clearAllData: async () => {
+    const response = await api.delete('/admin/all-data');
+    return response.data;
+  },
 };
 
 // User submissions

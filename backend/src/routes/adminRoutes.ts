@@ -17,6 +17,7 @@ import {
   backfillAllBoxSets,
   deleteAllBoxSets,
   clearCineShelfData,
+  clearAllData,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -43,5 +44,8 @@ router.delete('/box-sets', deleteAllBoxSets);
 
 // CineShelf Data Management
 router.delete('/cineshelf-data', clearCineShelfData);
+
+// Nuclear Reset
+router.delete('/all-data', clearAllData);
 
 export default router;

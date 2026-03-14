@@ -73,6 +73,7 @@ export default function AdminPage() {
   const [backfillAllConfirm, setBackfillAllConfirm] = useState(false);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [clearCineShelfConfirm, setClearCineShelfConfirm] = useState(false);
+  const [nuclearResetConfirm, setNuclearResetConfirm] = useState(false);
 
   const loadData = async () => {
     try {
@@ -227,7 +228,13 @@ export default function AdminPage() {
               onClick={() => setClearCineShelfConfirm(true)}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
             >
-              🧹 Clear CineShelf Data (Full Reset)
+              🧹 Clear CineShelf Data
+            </button>
+            <button
+              onClick={() => setNuclearResetConfirm(true)}
+              className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-900 font-medium text-sm border-2 border-red-600"
+            >
+              💣 NUCLEAR RESET (Clear Everything)
             </button>
           </div>
 
@@ -663,6 +670,59 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setClearCineShelfConfirm(false)}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nuclear Reset Confirmation */}
+      {nuclearResetConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 border-4 border-red-600">
+            <h3 className="text-2xl font-bold text-red-600 mb-3">💣 NUCLEAR RESET</h3>
+            <p className="text-sm text-gray-900 font-bold mb-3">
+              ⚠️ THIS WILL DELETE EVERYTHING FROM THE DATABASE ⚠️
+            </p>
+            <ul className="text-sm text-gray-700 mb-4 space-y-1 pl-4 bg-red-50 p-3 rounded border border-red-200">
+              <li>❌ All movies (MANUAL, HYBRID, everything)</li>
+              <li>❌ All physical copies</li>
+              <li>❌ All box sets</li>
+              <li>❌ All external matches (TMDB/IMDB links)</li>
+              <li>❌ All movie-genre relationships</li>
+              <li>❌ All movie-person relationships</li>
+              <li>❌ All persons (actors/directors)</li>
+            </ul>
+            <p className="text-sm text-red-700 font-bold mb-4">
+              The database will be COMPLETELY EMPTY. This is for testing CineShelf's full sync feature.
+            </p>
+            <p className="text-xs text-gray-600 mb-4">
+              💡 After this, run "Sync Collection to UMDB" in CineShelf to populate everything fresh.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setActionLoading('nuclear-reset');
+                  try {
+                    const result = await adminApi.clearAllData();
+                    alert(`💣 NUCLEAR RESET COMPLETE!\n\nDeleted:\n• ${result.deleted.movies} movies\n• ${result.deleted.physicalCopies} physical copies\n• ${result.deleted.boxSets} box sets\n• ${result.deleted.externalMatches} external matches\n• ${result.deleted.movieGenres} movie-genre links\n• ${result.deleted.moviePersons} movie-person links\n• ${result.deleted.persons} persons\n\n✅ Database is now empty!\n\n👉 Ready for CineShelf full sync!`);
+                  } catch (err: any) {
+                    alert(`❌ Error: ${err.response?.data?.error || err.message}`);
+                  }
+                  setNuclearResetConfirm(false);
+                  await loadBoxSets();
+                  setActionLoading(null);
+                }}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 font-bold"
+              >
+                💣 YES, DELETE EVERYTHING
+              </button>
+              <button
+                onClick={() => setNuclearResetConfirm(false)}
                 className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Cancel
