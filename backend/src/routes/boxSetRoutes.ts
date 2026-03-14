@@ -13,6 +13,7 @@ import {
   updateBoxSetComponent,
   deleteBoxSetComponent,
   syncBoxSetComponents,
+  uploadBoxSetImage,
 } from '../controllers/boxSetController';
 
 const router = Router();
@@ -35,5 +36,8 @@ router.post('/:id/components', addBoxSetComponent);
 router.put('/:id/components/:componentId', updateBoxSetComponent);
 router.delete('/:id/components/:componentId', deleteBoxSetComponent);
 router.post('/:id/components/sync', syncBoxSetComponents);
+
+// Box set image upload
+router.post('/:id/upload-image', uploadBoxSetImage);
 
 export default router;

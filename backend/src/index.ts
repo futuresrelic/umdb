@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { errorHandler } from './middleware/errorHandler';
 import movieRoutes from './routes/movieRoutes';
 import externalRoutes from './routes/externalRoutes';
@@ -54,6 +56,14 @@ app.use(morgan('dev'));
 // Icons are large (base64 PNG); images are up to 3 MB each — raise the JSON body limit
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+// Static file serving for uploaded images
+const uploadsDir = path.join(__dirname, '../data/uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('📁 Created uploads directory:', uploadsDir);
+}
+app.use('/data/uploads', express.static(uploadsDir));
 
 // Routes
 app.get('/api/health', async (req, res) => {

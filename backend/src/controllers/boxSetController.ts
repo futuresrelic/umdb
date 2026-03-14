@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { PrismaClient, EntryStatus } from '@prisma/client';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -726,5 +729,69 @@ export async function syncBoxSetComponents(req: Request, res: Response): Promise
   } catch (err) {
     console.error('Failed to sync components:', err);
     res.status(500).json({ error: 'Failed to sync components' });
+  }
+}
+
+// POST /api/box-sets/:id/upload-image - Upload cover or spine image
+export async function uploadBoxSetImage(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const rawId = id.replace(/^boxset-/, '');
+    const { dataUrl, imageType } = req.body; // imageType: 'cover' or 'spine'
+
+    if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+      res.status(400).json({ error: 'Valid base64 dataUrl is required' });
+      return;
+    }
+
+    if (!imageType || !['cover', 'spine'].includes(imageType)) {
+      res.status(400).json({ error: 'imageType must be "cover" or "spine"' });
+      return;
+    }
+
+    // Extract image data and extension
+    const matches = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!matches) {
+      res.status(400).json({ error: 'Invalid dataUrl format' });
+      return;
+    }
+
+    const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Generate unique filename
+    const hash = crypto.createHash('md5').update(buffer).digest('hex').substring(0, 12);
+    const filename = `${imageType}_${Date.now()}_${hash}.${ext}`;
+
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(__dirname, '../../data/uploads/covers');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Save file
+    const filePath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filePath, buffer);
+
+    // Update box set with image URL
+    const imageUrl = `/data/uploads/covers/${filename}`;
+    const updateData = imageType === 'cover'
+      ? { coverImageUrl: imageUrl }
+      : { spineImageUrl: imageUrl };
+
+    await prisma.boxSet.update({
+      where: { id: rawId },
+      data: updateData,
+    });
+
+    res.json({
+      success: true,
+      imageUrl,
+      message: `${imageType === 'cover' ? 'Cover' : 'Spine'} image uploaded successfully`,
+    });
+  } catch (err) {
+    console.error('Failed to upload image:', err);
+    res.status(500).json({ error: 'Failed to upload image' });
   }
 }
