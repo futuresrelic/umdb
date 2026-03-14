@@ -8,6 +8,11 @@ import {
   addMovieToBoxSet,
   removeMovieFromBoxSet,
   updateBoxSetMovie,
+  getBoxSetComponents,
+  addBoxSetComponent,
+  updateBoxSetComponent,
+  deleteBoxSetComponent,
+  syncBoxSetComponents,
 } from '../controllers/boxSetController';
 
 const router = Router();
@@ -23,5 +28,12 @@ router.delete('/:id', deleteBoxSet);
 router.post('/:id/movies', addMovieToBoxSet);
 router.delete('/:id/movies/:movieId', removeMovieFromBoxSet);
 router.put('/:id/movies/:movieId', updateBoxSetMovie);
+
+// Box set component management
+router.get('/:id/components', getBoxSetComponents);
+router.post('/:id/components', addBoxSetComponent);
+router.put('/:id/components/:componentId', updateBoxSetComponent);
+router.delete('/:id/components/:componentId', deleteBoxSetComponent);
+router.post('/:id/components/sync', syncBoxSetComponents);
 
 export default router;
