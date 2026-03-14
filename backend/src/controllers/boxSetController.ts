@@ -3,6 +3,119 @@ import { PrismaClient, EntryStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Component type definition
+interface Component {
+  type: string;
+  name: string;
+  required: boolean;
+  count?: number;
+}
+
+// Helper function to auto-generate components from box set flags
+function generateComponentsFromFlags(boxSet: any): Component[] {
+  const components: Component[] = [];
+
+  // Slipcover
+  if (boxSet.hasSlipcover) {
+    components.push({
+      type: 'slipcover',
+      name: 'Slipcover',
+      required: true,
+    });
+  }
+
+  // Booklet
+  if (boxSet.hasBooklet) {
+    components.push({
+      type: 'booklet',
+      name: 'Booklet',
+      required: true,
+    });
+  }
+
+  // Bonus discs
+  if (boxSet.hasBonusDisc) {
+    const count = boxSet.bonusDiscCount || 1;
+    for (let i = 1; i <= count; i++) {
+      components.push({
+        type: 'disc',
+        name: count > 1 ? `Bonus Disc ${i}` : 'Bonus Disc',
+        required: true,
+      });
+    }
+  }
+
+  // Digital copy
+  if (boxSet.hasDigitalCopy) {
+    components.push({
+      type: 'digital_code',
+      name: 'Digital Copy Code',
+      required: true,
+    });
+  }
+
+  // 3D discs (if applicable)
+  if (boxSet.has3d) {
+    components.push({
+      type: 'disc',
+      name: '3D Disc',
+      required: true,
+    });
+  }
+
+  // Package type based components
+  if (boxSet.packageType) {
+    const pkgType = boxSet.packageType.toLowerCase();
+    if (pkgType.includes('slipcase')) {
+      components.push({
+        type: 'outer_case',
+        name: 'Slipcase',
+        required: true,
+      });
+    } else if (pkgType.includes('digipak')) {
+      components.push({
+        type: 'case',
+        name: 'Digipak',
+        required: true,
+      });
+    } else if (pkgType.includes('steelbook')) {
+      components.push({
+        type: 'case',
+        name: 'Steelbook',
+        required: true,
+      });
+    }
+  }
+
+  // Edition-based components
+  if (boxSet.edition) {
+    const editionLower = boxSet.edition.toLowerCase();
+    if (editionLower.includes('criterion')) {
+      components.push({
+        type: 'booklet',
+        name: 'Criterion Booklet',
+        required: true,
+      });
+    }
+    if (editionLower.includes('poster')) {
+      components.push({
+        type: 'poster',
+        name: 'Poster',
+        required: true,
+      });
+    }
+    if (editionLower.includes('art cards') || editionLower.includes('postcards')) {
+      components.push({
+        type: 'art_cards',
+        name: 'Art Cards',
+        required: true,
+      });
+    }
+  }
+
+  return components;
+}
+
 // GET /api/box-sets - List all box sets with search and pagination
 export async function getAllBoxSets(req: Request, res: Response): Promise<void> {
   try {
