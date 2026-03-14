@@ -1274,6 +1274,11 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
 
   if (!name) throw new AppError('name is required', 400);
 
+  // IMPORTANT: CineShelf's "spine_image" is actually the COVER/FRONT image
+  // Map it to coverImageUrl, not spineImageUrl
+  const coverImageUrl = spine_image || cover_image || null;
+  const spineImageUrl = null; // CineShelf doesn't have a separate spine image
+
   // Deduplication: check if box set with same name + format already exists
   const existing = await prisma.boxSet.findFirst({
     where: {
@@ -1314,8 +1319,8 @@ export const createBoxSet = asyncHandler(async (req: Request, res: Response) => 
       bonusDiscCount: bonus_disc_count || null,
       hasDigitalCopy: has_digital_copy ?? false,
       has3d: has_3d ?? false,
-      coverImageUrl: cover_image || null,
-      spineImageUrl: spine_image || null,
+      coverImageUrl, // Mapped from CineShelf's spine_image
+      spineImageUrl, // Always null - CineShelf doesn't track spine separately
       status: EntryStatus.VERIFIED,
     },
   });
