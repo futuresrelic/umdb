@@ -72,6 +72,7 @@ export default function AdminPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const [backfillAllConfirm, setBackfillAllConfirm] = useState(false);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
+  const [clearCineShelfConfirm, setClearCineShelfConfirm] = useState(false);
 
   const loadData = async () => {
     try {
@@ -209,7 +210,7 @@ export default function AdminPage() {
           </div>
 
           {/* Global Actions */}
-          <div className="flex gap-3 mb-6">
+          <div className="flex gap-3 mb-6 flex-wrap">
             <button
               onClick={() => setBackfillAllConfirm(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
@@ -220,7 +221,13 @@ export default function AdminPage() {
               onClick={() => setDeleteAllConfirm(true)}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm"
             >
-              🗑️ Delete All (Nuclear)
+              🗑️ Delete All Box Sets
+            </button>
+            <button
+              onClick={() => setClearCineShelfConfirm(true)}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
+            >
+              🧹 Clear CineShelf Data (Full Reset)
             </button>
           </div>
 
@@ -610,6 +617,52 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setDeleteAllConfirm(false)}
+                className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear CineShelf Data Confirmation */}
+      {clearCineShelfConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-purple-600 mb-2">🧹 Clear CineShelf Data</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              This will clear <span className="font-bold text-purple-600">ALL CineShelf-synced data</span>:
+            </p>
+            <ul className="text-sm text-gray-700 mb-4 space-y-1 pl-4">
+              <li>• All box sets</li>
+              <li>• All PhysicalCopy records linked to box sets</li>
+              <li>• All movies with sourceType = "HYBRID"</li>
+            </ul>
+            <p className="text-xs text-gray-500 mb-4">
+              ⚠️ This prepares UMDB for a fresh full sync from CineShelf. Manual entries (sourceType = "MANUAL") will be preserved.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  setActionLoading('clear-cineshelf');
+                  try {
+                    const result = await adminApi.clearCineShelfData();
+                    alert(`✅ Cleared CineShelf data!\n\n${result.deleted.boxSets} box sets\n${result.deleted.physicalCopies} physical copies\n${result.deleted.movies} HYBRID movies\n\nReady for full sync from CineShelf!`);
+                  } catch (err: any) {
+                    alert(`❌ Error: ${err.response?.data?.error || err.message}`);
+                  }
+                  setClearCineShelfConfirm(false);
+                  await loadBoxSets();
+                  setActionLoading(null);
+                }}
+                disabled={!!actionLoading}
+                className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium"
+              >
+                Yes, Clear All CineShelf Data
+              </button>
+              <button
+                onClick={() => setClearCineShelfConfirm(false)}
                 className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
               >
                 Cancel

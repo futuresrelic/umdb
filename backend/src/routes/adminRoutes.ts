@@ -16,6 +16,7 @@ import {
   backfillBoxSet,
   backfillAllBoxSets,
   deleteAllBoxSets,
+  clearCineShelfData,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -39,5 +40,8 @@ router.delete('/box-sets/:id', deleteBoxSet);
 router.post('/box-sets/:id/backfill', backfillBoxSet);
 router.post('/box-sets/backfill-all', backfillAllBoxSets);
 router.delete('/box-sets', deleteAllBoxSets);
+
+// CineShelf Data Management
+router.delete('/cineshelf-data', clearCineShelfData);
 
 export default router;

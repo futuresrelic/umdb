@@ -216,6 +216,11 @@ export const adminApi = {
     const response = await api.delete('/admin/box-sets');
     return response.data;
   },
+
+  clearCineShelfData: async () => {
+    const response = await api.delete('/admin/cineshelf-data');
+    return response.data;
+  },
 };
 
 // User submissions

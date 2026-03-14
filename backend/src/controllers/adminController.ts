@@ -579,3 +579,47 @@ export async function deleteAllBoxSets(req: Request, res: Response): Promise<voi
     res.status(500).json({ error: 'Failed to delete all box sets' });
   }
 }
+
+// DELETE /api/admin/cineshelf-data - Clear all CineShelf synced data (NUCLEAR)
+export async function clearCineShelfData(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('🗑️  Admin clearing ALL CineShelf data (NUCLEAR RESET)');
+
+    // 1. Delete all box sets
+    const boxSetCount = await prisma.boxSet.count();
+    await prisma.boxSet.deleteMany({});
+    console.log(`  ✅ Deleted ${boxSetCount} box sets`);
+
+    // 2. Delete all PhysicalCopy records with sourceType = HYBRID (CineShelf-created)
+    // Note: Also delete those linked to box sets (isBoxSet = true)
+    const physicalCopyCount = await prisma.physicalCopy.deleteMany({
+      where: {
+        OR: [
+          { isBoxSet: true },
+          // Add more conditions if needed for CineShelf-specific copies
+        ],
+      },
+    });
+    console.log(`  ✅ Deleted ${physicalCopyCount.count} PhysicalCopy records`);
+
+    // 3. Delete all movies with sourceType = HYBRID (CineShelf-created)
+    const movieCount = await prisma.movie.deleteMany({
+      where: { sourceType: 'HYBRID' },
+    });
+    console.log(`  ✅ Deleted ${movieCount.count} HYBRID movies`);
+
+    console.log('✅ CineShelf data cleared successfully');
+    res.json({
+      success: true,
+      message: 'CineShelf data cleared',
+      deleted: {
+        boxSets: boxSetCount,
+        physicalCopies: physicalCopyCount.count,
+        movies: movieCount.count,
+      },
+    });
+  } catch (err) {
+    console.error('Failed to clear CineShelf data:', err);
+    res.status(500).json({ error: 'Failed to clear CineShelf data' });
+  }
+}
