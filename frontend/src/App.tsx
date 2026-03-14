@@ -14,6 +14,9 @@ import MySubmissionsPage from './pages/MySubmissionsPage';
 import AdminPage from './pages/AdminPage';
 import EditMoviePage from './pages/EditMoviePage';
 import DocsPage from './pages/DocsPage';
+import BoxSetsListPage from './pages/BoxSetsListPage';
+import BoxSetDetailPage from './pages/BoxSetDetailPage';
+import BoxSetCreatePage from './pages/BoxSetCreatePage';
 
 function NavBar() {
   const { user, loading, login, logout, isAdmin } = useAuth();
@@ -30,6 +33,9 @@ function NavBar() {
             <div className="ml-10 flex items-baseline space-x-4">
               <Link to="/browse" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
                 Browse
+              </Link>
+              <Link to="/box-sets" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
+                📦 Box Sets
               </Link>
               {user && (
                 <>
@@ -130,6 +136,9 @@ function App() {
               <Route path="/edit/:id" element={<EditMoviePage />} />
               <Route path="/docs" element={<DocsPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/box-sets" element={<BoxSetsListPage />} />
+              <Route path="/box-sets/new" element={<BoxSetCreatePage />} />
+              <Route path="/box-sets/:id" element={<BoxSetDetailPage />} />
             </Routes>
           </main>
 

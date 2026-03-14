@@ -238,8 +238,43 @@ export const userApi = {
 
 // Box Sets
 export const boxSetApi = {
+  getAll: async (params?: { search?: string; format?: string; sortBy?: string; sortOrder?: string; limit?: number; offset?: number }) => {
+    const response = await api.get('/box-sets', { params });
+    return response.data;
+  },
+
   getBoxSet: async (id: string) => {
     const response = await api.get(`/box-sets/${id}`);
+    return response.data;
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/box-sets', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/box-sets/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete(`/box-sets/${id}`);
+    return response.data;
+  },
+
+  addMovie: async (id: string, data: { movieId: string; position?: number; discNumber?: number; discLabel?: string; isPresent?: boolean }) => {
+    const response = await api.post(`/box-sets/${id}/movies`, data);
+    return response.data;
+  },
+
+  removeMovie: async (id: string, movieId: string) => {
+    const response = await api.delete(`/box-sets/${id}/movies/${movieId}`);
+    return response.data;
+  },
+
+  updateMovie: async (id: string, movieId: string, data: { position?: number; discNumber?: number; discLabel?: string; isPresent?: boolean }) => {
+    const response = await api.put(`/box-sets/${id}/movies/${movieId}`, data);
     return response.data;
   },
 };
