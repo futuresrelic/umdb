@@ -37,6 +37,36 @@ The server will run on http://localhost:3001
 - `PUT /api/movies/:id` - Update a movie
 - `DELETE /api/movies/:id` - Delete a movie
 - `POST /api/movies/:id/external-matches` - Add external match to movie
+- `GET /api/movies/:id/physical-copies` - Get all physical copies for a movie
+
+### Physical Copies
+- `GET /api/physical-copies` - List all physical copies (with search, filter, pagination)
+- `GET /api/physical-copies/:id` - Get physical copy details
+- `POST /api/physical-copies` - Create a new physical copy
+- `PUT /api/physical-copies/:id` - Update a physical copy
+- `DELETE /api/physical-copies/:id` - Delete a physical copy
+
+Physical copy fields include:
+- Format (DVD, Blu-ray, VHS, 4K UHD, LaserDisc, etc.)
+- Edition details (Collector's Edition, Director's Cut, region, package type)
+- Distribution info (distributor, UPC, EAN, ASIN, release date)
+- Audio/video specs (audio formats, subtitles, video standard)
+- Box set features (slipcover, booklet, bonus discs, digital copy, 3D)
+- Condition and ownership tracking
+
+### Box Sets
+- `GET /api/box-sets` - List all box sets (with search, filter, pagination)
+- `GET /api/box-sets/:id` - Get box set details (includes all movies)
+- `POST /api/box-sets` - Create a new box set with movies
+- `PUT /api/box-sets/:id` - Update a box set
+- `DELETE /api/box-sets/:id` - Delete a box set
+
+Box sets support:
+- Multi-movie collections (e.g., "The Matrix Trilogy", "Lord of the Rings Extended Edition")
+- Special features (slipcover, booklet, bonus discs, 3D, digital copies)
+- Disc tracking (disc number, label, presence status)
+- Cover and spine images
+- Auto-creation of movies from TMDB/IMDB IDs
 
 ### External APIs
 - `GET /api/external/search?query=...&year=...&source=...` - Search TMDB and OMDB
@@ -56,6 +86,9 @@ The server will run on http://localhost:3001
 - `POST /api/genres` - Create a new genre
 - `PUT /api/genres/:id` - Update a genre
 - `DELETE /api/genres/:id` - Delete a genre
+
+### External Integration
+For detailed API integration documentation (including CineShelf integration), see [CINESHELF_API_INTEGRATION.md](../CINESHELF_API_INTEGRATION.md).
 
 ## Environment Variables
 

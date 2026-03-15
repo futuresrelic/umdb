@@ -166,32 +166,62 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for SSL setup, reverse proxy, and production 
 
 Key models:
 - **Movie** - Core movie data with all metadata
+- **PhysicalCopy** - Physical media releases (DVDs, Blu-rays, VHS, etc.) with format, region, distributor, and condition tracking
+- **BoxSet** - Multi-movie collections (e.g., "The Matrix Trilogy") with special features
+- **BoxSetItem** - Junction linking box sets to movies/releases
 - **ExternalMatch** - Links to TMDB/IMDB
 - **Person** - Actors, directors, crew
 - **Genre** - Movie genres
 - **MoviePerson** - Junction with roles (actor, director, etc.)
 - **MovieGenre** - Junction for genres
+- **MediaImage** - User-uploaded images (covers, snapshots, alternate posters)
 
 See `backend/prisma/schema.prisma` for full schema.
 
 ## 🔧 API Endpoints
 
+### Movies
 ```
 GET    /api/movies              # List movies
 GET    /api/movies/:id          # Get movie details
 POST   /api/movies              # Create movie
 PUT    /api/movies/:id          # Update movie
 DELETE /api/movies/:id          # Delete movie
+```
 
+### Physical Copies & Editions
+```
+GET    /api/physical-copies              # List all physical copies
+GET    /api/physical-copies/:id          # Get physical copy details
+POST   /api/physical-copies              # Create physical copy
+PUT    /api/physical-copies/:id          # Update physical copy
+DELETE /api/physical-copies/:id          # Delete physical copy
+GET    /api/movies/:id/physical-copies   # Get all copies for a movie
+```
+
+### Box Sets
+```
+GET    /api/box-sets            # List all box sets
+GET    /api/box-sets/:id        # Get box set details
+POST   /api/box-sets            # Create box set
+PUT    /api/box-sets/:id        # Update box set
+DELETE /api/box-sets/:id        # Delete box set
+```
+
+### External APIs
+```
 GET    /api/external/search     # Search TMDB & IMDB
 POST   /api/external/import/tmdb  # Import from TMDB
 POST   /api/external/import/imdb  # Import from IMDB
+```
 
+### People & Genres
+```
 GET    /api/people              # List people
 GET    /api/genres              # List genres
 ```
 
-See [backend/README.md](backend/README.md) for full API documentation.
+See [backend/README.md](backend/README.md) for full API documentation and [CINESHELF_API_INTEGRATION.md](CINESHELF_API_INTEGRATION.md) for external integration guide.
 
 ## 🤝 Contributing
 
