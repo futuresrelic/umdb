@@ -384,6 +384,15 @@ export async function updateBoxSet(req: Request, res: Response): Promise<void> {
       has3d,
     } = req.body;
 
+    // Validate numeric fields
+    if (bonusDiscCount !== undefined && bonusDiscCount !== null) {
+      const parsed = parseInt(bonusDiscCount);
+      if (isNaN(parsed)) {
+        res.status(400).json({ error: 'bonusDiscCount must be a valid number' });
+        return;
+      }
+    }
+
     const boxSet = await prisma.boxSet.update({
       where: { id: rawId },
       data: {
@@ -398,7 +407,9 @@ export async function updateBoxSet(req: Request, res: Response): Promise<void> {
         ...(hasSlipcover !== undefined && { hasSlipcover }),
         ...(hasBooklet !== undefined && { hasBooklet }),
         ...(hasBonusDisc !== undefined && { hasBonusDisc }),
-        ...(bonusDiscCount !== undefined && { bonusDiscCount }),
+        ...(bonusDiscCount !== undefined && bonusDiscCount !== null && {
+          bonusDiscCount: parseInt(bonusDiscCount)
+        }),
         ...(hasDigitalCopy !== undefined && { hasDigitalCopy }),
         ...(has3d !== undefined && { has3d }),
       },
@@ -412,7 +423,15 @@ export async function updateBoxSet(req: Request, res: Response): Promise<void> {
     });
   } catch (err) {
     console.error('Failed to update box set:', err);
-    res.status(500).json({ error: 'Failed to update box set' });
+    // Log the full error for debugging
+    if (err instanceof Error) {
+      console.error('Error details:', err.message);
+      console.error('Stack trace:', err.stack);
+    }
+    res.status(500).json({
+      error: 'Failed to update box set',
+      details: err instanceof Error ? err.message : String(err)
+    });
   }
 }
 
