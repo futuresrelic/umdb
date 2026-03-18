@@ -814,8 +814,10 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
   const movie = movieRow;
   const resolvedMovieId: string = movie.id;
 
-  // Deduplicate by barcode if provided
+  // Deduplicate by barcode AND format if provided
   const barcodeValue = upc || barcode || ean || null;
+  const resolvedFormat = resolveFormat(format);
+
   if (barcodeValue) {
     const existing = await prisma.physicalCopy.findFirst({
       where: {
@@ -826,16 +828,17 @@ export const createEdition = asyncHandler(async (req: Request, res: Response) =>
         ],
       },
     });
-    if (existing) {
+
+    // Only treat as duplicate if BOTH barcode AND format match
+    // Same barcode + different format = allow (edge case: same product released in multiple formats)
+    if (existing && existing.format === resolvedFormat) {
       return res.status(200).json({
         duplicate: true,
-        message: 'An edition with this barcode already exists for this movie',
+        message: 'An edition with this barcode and format already exists for this movie',
         edition: formatRelease(existing, movie),
       });
     }
   }
-
-  const resolvedFormat = resolveFormat(format);
 
   const copy = await prisma.physicalCopy.create({
     data: {
