@@ -27,6 +27,7 @@ model User {
   uploadedImages        MediaImage[]   @relation("UploadedImages")
 
   @@index([email])
+  @@index([googleId])
 }
 
 // Movie is the core entity
@@ -88,6 +89,9 @@ model Movie {
   @@index([title])
   @@index([year])
   @@index([sourceType])
+  @@index([status])
+  @@index([upc])
+  @@index([asin])
 }
 
 // External platform matches (TMDB, IMDB, etc.)
@@ -129,6 +133,7 @@ model ExternalMatch {
 
   @@unique([movieId, source])
   @@index([externalId, source])
+  @@index([externalId])
 }
 
 // People (actors, directors, etc.)
@@ -273,6 +278,10 @@ model PhysicalCopy {
   @@index([movieId])
   @@index([format])
   @@index([boxSetId])
+  @@index([upc])
+  @@index([ean])
+  @@index([asin])
+  @@index([status])
 }
 
 // Alternative titles for movies

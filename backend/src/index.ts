@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import { errorHandler } from './middleware/errorHandler';
+import { generalLimiter } from './middleware/rateLimiter';
 import movieRoutes from './routes/movieRoutes';
 import externalRoutes from './routes/externalRoutes';
 import personRoutes from './routes/personRoutes';
@@ -21,6 +22,7 @@ import imageRoutes from './routes/imageRoutes';
 import iconRoutes from './routes/iconRoutes';
 import diagnosticsRoutes from './routes/diagnostics';
 import boxSetRoutes from './routes/boxSetRoutes';
+import searchRoutes from './routes/searchRoutes';
 
 // Force redeploy with latest schema and routes
 
@@ -64,6 +66,9 @@ if (!fs.existsSync(uploadsDir)) {
   console.log('📁 Created uploads directory:', uploadsDir);
 }
 app.use('/data/uploads', express.static(uploadsDir));
+
+// Apply general rate limiter to all API routes
+app.use('/api/', generalLimiter);
 
 // Routes
 app.get('/api/health', async (req, res) => {
@@ -138,6 +143,7 @@ app.use('/api/images', imageRoutes);
 app.use('/api/icons', iconRoutes);
 app.use('/api/diagnostics', diagnosticsRoutes);
 app.use('/api/box-sets', boxSetRoutes);
+app.use('/api/search', searchRoutes);
 
 // Error handling
 app.use(errorHandler);

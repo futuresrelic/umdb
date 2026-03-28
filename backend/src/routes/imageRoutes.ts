@@ -8,6 +8,7 @@ import {
   updateImage,
   deleteImage,
 } from '../controllers/imageController';
+import { uploadLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -18,9 +19,9 @@ router.get('/:id', serveImage);
 router.get('/movie/:movieId', getMovieImages);
 router.get('/copy/:copyId', getCopyImages);
 
-// Write operations require auth
-router.post('/', requireAuth, uploadImage);
-router.put('/:id', requireAuth, updateImage);
+// Write operations require auth + rate limiting
+router.post('/', uploadLimiter, requireAuth, uploadImage);
+router.put('/:id', uploadLimiter, requireAuth, updateImage);
 router.delete('/:id', requireAuth, deleteImage);
 
 export default router;

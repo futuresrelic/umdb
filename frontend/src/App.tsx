@@ -1,6 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
+import { useGlobalShortcuts } from './hooks/useKeyboardShortcuts';
+import GlobalSearch from './components/GlobalSearch';
+import Breadcrumbs from './components/Breadcrumbs';
 import HomePage from './pages/HomePage';
 import BrowseMoviesPage from './pages/BrowseMoviesPage';
 import MovieDetailsPage from './pages/MovieDetailsPage';
@@ -20,17 +25,19 @@ import BoxSetCreatePage from './pages/BoxSetCreatePage';
 
 function NavBar() {
   const { user, loading, login, logout, isAdmin } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   return (
-    <nav className="bg-gray-900 text-white shadow-lg">
+    <nav className="bg-gray-900 dark:bg-gray-950 text-white shadow-lg border-b border-gray-800 dark:border-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
+          <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center">
               <span className="text-2xl font-bold">🎬 UMDB</span>
             </Link>
-            <div className="ml-10 flex items-baseline space-x-4">
+            <GlobalSearch />
+            <div className="hidden lg:flex items-baseline space-x-4">
               <Link to="/browse" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
                 Browse
               </Link>
@@ -68,6 +75,23 @@ function NavBar() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg bg-gray-800 dark:bg-gray-900 hover:bg-gray-700 dark:hover:bg-gray-800 transition"
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? (
+                <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                </svg>
+              )}
+            </button>
+
             {loading ? null : user ? (
               <div className="flex items-center gap-3">
                 {user.photo && (
@@ -102,7 +126,10 @@ function NavBar() {
   );
 }
 
-function App() {
+function AppContent() {
+  // Enable global keyboard shortcuts
+  useGlobalShortcuts();
+
   // Point favicon/apple-touch-icon to the admin-configured icons on the backend.
   // index.html has static fallbacks; this updates them once JS loads.
   useEffect(() => {
@@ -116,13 +143,12 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <NavBar />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
+      <NavBar />
 
-          <main>
-            <Routes>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <Breadcrumbs />
+        <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/browse" element={<BrowseMoviesPage />} />
               <Route path="/movie/:id" element={<MovieDetailsPage />} />
@@ -142,7 +168,7 @@ function App() {
             </Routes>
           </main>
 
-          <footer className="bg-gray-900 text-white mt-16">
+          <footer className="bg-gray-900 dark:bg-gray-950 text-white mt-16 border-t border-gray-800">
             <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 text-center space-y-2">
               <p className="text-gray-400">
                 UMDB - Universal Media Database &copy; {new Date().getFullYear()}
@@ -151,10 +177,28 @@ function App() {
                 This product uses the TMDB API but is not endorsed or certified by TMDB.
                 Movie data may also be sourced from OMDb API.
               </p>
+              <p className="text-gray-600 text-xs mt-4">
+                Keyboard shortcuts: <kbd className="px-2 py-1 bg-gray-800 rounded text-xs">H</kbd> Home •
+                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs ml-1">B</kbd> Browse •
+                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs ml-1">/</kbd> Search •
+                <kbd className="px-2 py-1 bg-gray-800 rounded text-xs ml-1">A</kbd> Add Movie
+              </p>
             </div>
           </footer>
-        </div>
-      </AuthProvider>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <AppContent />
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
     </Router>
   );
 }
