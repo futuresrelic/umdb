@@ -23,6 +23,7 @@ import iconRoutes from './routes/iconRoutes';
 import diagnosticsRoutes from './routes/diagnostics';
 import boxSetRoutes from './routes/boxSetRoutes';
 import searchRoutes from './routes/searchRoutes';
+import { initializeFullTextSearch } from './services/searchService';
 
 // Force redeploy with latest schema and routes
 
@@ -151,6 +152,8 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`🎬 UMDB Server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  // Attempt to enable pg_trgm for fuzzy search — non-fatal if unavailable
+  initializeFullTextSearch().catch(() => {});
 });
 
 export default app;

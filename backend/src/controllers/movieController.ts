@@ -21,26 +21,32 @@ export const getAllMovies = asyncHandler(async (req: Request, res: Response) => 
     offset = 0
   } = req.query;
 
-  const where: Prisma.MovieWhereInput = {};
+  const andClauses: Prisma.MovieWhereInput[] = [];
 
   // Status filter: show VERIFIED + user's own PENDING entries
   const userId = req.user?.id;
   if (userId) {
-    where.OR = [
-      { status: EntryStatus.VERIFIED },
-      { status: EntryStatus.PENDING, submittedById: userId },
-    ];
+    andClauses.push({
+      OR: [
+        { status: EntryStatus.VERIFIED },
+        { status: EntryStatus.PENDING, submittedById: userId },
+      ],
+    });
   } else {
-    where.status = EntryStatus.VERIFIED;
+    andClauses.push({ status: EntryStatus.VERIFIED });
   }
 
-  // Text search
+  // Text search — kept separate from status so both apply
   if (search) {
-    where.OR = [
-      { title: { contains: String(search), mode: 'insensitive' } },
-      { originalTitle: { contains: String(search), mode: 'insensitive' } }
-    ];
+    andClauses.push({
+      OR: [
+        { title: { contains: String(search), mode: 'insensitive' } },
+        { originalTitle: { contains: String(search), mode: 'insensitive' } },
+      ],
+    });
   }
+
+  const where: Prisma.MovieWhereInput = andClauses.length > 0 ? { AND: andClauses } : {};
 
   // Year filter
   if (year) {

@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 export interface SearchResult {
   movies: any[];
@@ -17,9 +15,56 @@ export interface SearchOptions {
   fuzzy?: boolean;
 }
 
+// Cached flag: null = unknown, true = available, false = unavailable
+let pgTrgmAvailable: boolean | null = null;
+
+async function checkPgTrgm(): Promise<boolean> {
+  if (pgTrgmAvailable !== null) return pgTrgmAvailable;
+  try {
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS pg_trgm`;
+    pgTrgmAvailable = true;
+  } catch {
+    pgTrgmAvailable = false;
+  }
+  return pgTrgmAvailable;
+}
+
 /**
- * Full-text search across movies, people, and physical copies
- * Uses PostgreSQL's pg_trgm extension for fuzzy matching
+ * Search movies using ILIKE (always works, no extension needed)
+ */
+async function searchMoviesILike(searchTerm: string, limit: number, offset: number) {
+  return prisma.movie.findMany({
+    where: {
+      AND: [
+        { status: 'VERIFIED' as any },
+        {
+          OR: [
+            { title: { contains: searchTerm, mode: 'insensitive' } },
+            { originalTitle: { contains: searchTerm, mode: 'insensitive' } },
+            { plot: { contains: searchTerm, mode: 'insensitive' } },
+            { tagline: { contains: searchTerm, mode: 'insensitive' } },
+          ],
+        },
+      ],
+    },
+    take: limit,
+    skip: offset,
+    select: {
+      id: true,
+      title: true,
+      originalTitle: true,
+      year: true,
+      posterUrl: true,
+      rating: true,
+      runtime: true,
+      status: true,
+    },
+  });
+}
+
+/**
+ * Full-text search across movies, people, and physical copies.
+ * Tries pg_trgm fuzzy matching first; falls back to ILIKE automatically.
  */
 export async function fullTextSearch(options: SearchOptions): Promise<SearchResult> {
   const { query, limit = 20, offset = 0, type = 'all', fuzzy = true } = options;
@@ -36,201 +81,186 @@ export async function fullTextSearch(options: SearchOptions): Promise<SearchResu
   }
 
   const searchTerm = query.trim();
+  const useFuzzy = fuzzy && await checkPgTrgm();
 
-  try {
-    // Search movies (title, original title, plot, tagline)
-    if (type === 'movie' || type === 'all') {
-      if (fuzzy) {
-        // Use pg_trgm similarity search
+  // Search movies
+  if (type === 'movie' || type === 'all') {
+    if (useFuzzy) {
+      try {
         result.movies = await prisma.$queryRaw`
           SELECT
-            m.*,
+            m.id, m.title, m."originalTitle", m.year, m."posterUrl", m.rating, m.runtime, m.status,
             GREATEST(
               similarity(m.title, ${searchTerm}),
               COALESCE(similarity(m."originalTitle", ${searchTerm}), 0),
               COALESCE(similarity(m.plot, ${searchTerm}), 0) * 0.5
             ) as rank
           FROM "Movie" m
-          WHERE
-            m.title % ${searchTerm}
-            OR m."originalTitle" % ${searchTerm}
-            OR m.plot ILIKE ${'%' + searchTerm + '%'}
+          WHERE m.status = 'VERIFIED'
+            AND (
+              m.title % ${searchTerm}
+              OR m."originalTitle" % ${searchTerm}
+              OR m.plot ILIKE ${'%' + searchTerm + '%'}
+            )
           ORDER BY rank DESC
           LIMIT ${limit}
           OFFSET ${offset}
         `;
-      } else {
-        // Standard ILIKE search
-        result.movies = await prisma.movie.findMany({
-          where: {
-            OR: [
-              { title: { contains: searchTerm, mode: 'insensitive' } },
-              { originalTitle: { contains: searchTerm, mode: 'insensitive' } },
-              { plot: { contains: searchTerm, mode: 'insensitive' } },
-              { tagline: { contains: searchTerm, mode: 'insensitive' } },
-            ],
-          },
-          take: limit,
-          skip: offset,
-          include: {
-            movieGenres: {
-              include: { genre: true },
-            },
-            physicalCopies: {
-              take: 1,
-            },
-          },
-        });
+      } catch {
+        pgTrgmAvailable = false;
+        result.movies = await searchMoviesILike(searchTerm, limit, offset);
       }
+    } else {
+      result.movies = await searchMoviesILike(searchTerm, limit, offset);
     }
+  }
 
-    // Search people (name, biography)
-    if (type === 'person' || type === 'all') {
-      if (fuzzy) {
+  // Search people
+  if (type === 'person' || type === 'all') {
+    if (useFuzzy) {
+      try {
         result.people = await prisma.$queryRaw`
-          SELECT
-            p.*,
-            similarity(p.name, ${searchTerm}) as rank
+          SELECT p.id, p.name, p."photoUrl", similarity(p.name, ${searchTerm}) as rank
           FROM "Person" p
           WHERE p.name % ${searchTerm}
           ORDER BY rank DESC
           LIMIT ${limit}
           OFFSET ${offset}
         `;
-      } else {
+      } catch {
+        pgTrgmAvailable = false;
         result.people = await prisma.person.findMany({
-          where: {
-            OR: [
-              { name: { contains: searchTerm, mode: 'insensitive' } },
-              { biography: { contains: searchTerm, mode: 'insensitive' } },
-            ],
-          },
+          where: { name: { contains: searchTerm, mode: 'insensitive' } },
           take: limit,
           skip: offset,
+          select: { id: true, name: true, photoUrl: true },
         });
       }
-    }
-
-    // Search physical copies (edition name, distributor, upc, etc.)
-    if (type === 'copy' || type === 'all') {
-      result.physicalCopies = await prisma.physicalCopy.findMany({
+    } else {
+      result.people = await prisma.person.findMany({
         where: {
           OR: [
-            { editionName: { contains: searchTerm, mode: 'insensitive' } },
-            { distributor: { contains: searchTerm, mode: 'insensitive' } },
-            { upc: { contains: searchTerm, mode: 'insensitive' } },
-            { ean: { contains: searchTerm, mode: 'insensitive' } },
-            { asin: { contains: searchTerm, mode: 'insensitive' } },
+            { name: { contains: searchTerm, mode: 'insensitive' } },
+            { biography: { contains: searchTerm, mode: 'insensitive' } },
           ],
         },
         take: limit,
         skip: offset,
-        include: {
-          movie: {
-            select: {
-              id: true,
-              title: true,
-              year: true,
-              posterUrl: true,
-            },
-          },
-        },
+        select: { id: true, name: true, photoUrl: true },
       });
     }
-
-    result.total = result.movies.length + result.people.length + result.physicalCopies.length;
-
-    return result;
-  } catch (error) {
-    console.error('Search error:', error);
-    throw error;
   }
+
+  // Search physical copies (UPC/EAN/ASIN lookups)
+  if (type === 'copy' || type === 'all') {
+    result.physicalCopies = await prisma.physicalCopy.findMany({
+      where: {
+        OR: [
+          { editionName: { contains: searchTerm, mode: 'insensitive' } },
+          { distributor: { contains: searchTerm, mode: 'insensitive' } },
+          { upc: { contains: searchTerm, mode: 'insensitive' } },
+          { ean: { contains: searchTerm, mode: 'insensitive' } },
+          { asin: { contains: searchTerm, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      skip: offset,
+      include: {
+        movie: {
+          select: { id: true, title: true, year: true, posterUrl: true },
+        },
+      },
+    });
+  }
+
+  result.total = result.movies.length + result.people.length + result.physicalCopies.length;
+  return result;
 }
 
 /**
- * Search for similar titles (for duplicate detection)
+ * Find movies with similar titles (duplicate detection).
+ * Uses pg_trgm if available, falls back to ILIKE prefix match.
  */
 export async function findSimilarTitles(title: string, year?: number, limit = 10) {
-  try {
-    // Use trigram similarity with optional year matching
-    const results = await prisma.$queryRaw<any[]>`
-      SELECT
-        id,
-        title,
-        "originalTitle",
-        year,
-        "posterUrl",
-        similarity(title, ${title}) as rank
-      FROM "Movie"
-      WHERE title % ${title}
-        ${year ? prisma.$queryRawUnsafe(`AND year = ${year}`) : prisma.$queryRawUnsafe('')}
-      ORDER BY rank DESC, year DESC
-      LIMIT ${limit}
-    `;
+  const useFuzzy = await checkPgTrgm();
 
-    return results;
-  } catch (error) {
-    console.error('Similar titles search error:', error);
-    return [];
+  if (useFuzzy) {
+    try {
+      if (year) {
+        return await prisma.$queryRaw<any[]>`
+          SELECT id, title, "originalTitle", year, "posterUrl",
+            similarity(title, ${title}) as rank
+          FROM "Movie"
+          WHERE title % ${title} AND year = ${year}
+          ORDER BY rank DESC
+          LIMIT ${limit}
+        `;
+      }
+      return await prisma.$queryRaw<any[]>`
+        SELECT id, title, "originalTitle", year, "posterUrl",
+          similarity(title, ${title}) as rank
+        FROM "Movie"
+        WHERE title % ${title}
+        ORDER BY rank DESC, year DESC
+        LIMIT ${limit}
+      `;
+    } catch {
+      pgTrgmAvailable = false;
+    }
   }
+
+  // ILIKE fallback
+  return prisma.movie.findMany({
+    where: {
+      AND: [
+        { title: { contains: title, mode: 'insensitive' } },
+        ...(year ? [{ year }] : []),
+      ],
+    },
+    take: limit,
+    select: { id: true, title: true, originalTitle: true, year: true, posterUrl: true },
+  });
 }
 
 /**
- * Autocomplete search suggestions
+ * Quick autocomplete suggestions (always ILIKE — must be fast).
  */
 export async function getSearchSuggestions(query: string, limit = 5) {
-  if (!query || query.length < 2) {
-    return [];
-  }
+  if (!query || query.length < 2) return [];
 
   try {
-    const suggestions = await prisma.$queryRaw<any[]>`
-      SELECT DISTINCT
-        title,
-        year,
-        'movie' as type
-      FROM "Movie"
-      WHERE title ILIKE ${query + '%'}
-      ORDER BY title
-      LIMIT ${limit}
-    `;
-
-    return suggestions;
-  } catch (error) {
-    console.error('Suggestions error:', error);
+    return await prisma.movie.findMany({
+      where: {
+        AND: [
+          { status: 'VERIFIED' as any },
+          { title: { startsWith: query, mode: 'insensitive' } },
+        ],
+      },
+      take: limit,
+      select: { id: true, title: true, year: true },
+      orderBy: { title: 'asc' },
+    });
+  } catch {
     return [];
   }
 }
 
 /**
- * Initialize pg_trgm extension (run once during setup)
+ * Initialize pg_trgm extension + GIN indexes.
+ * Call once on server startup (non-fatal if it fails).
  */
 export async function initializeFullTextSearch() {
   try {
-    // Enable pg_trgm extension
-    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
-
-    // Create GIN indexes for faster trigram searches
-    await prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_movie_title_trgm ON "Movie" USING gin (title gin_trgm_ops);
-    `;
-
-    await prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_movie_original_title_trgm ON "Movie" USING gin ("originalTitle" gin_trgm_ops);
-    `;
-
-    await prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_person_name_trgm ON "Person" USING gin (name gin_trgm_ops);
-    `;
-
-    await prisma.$executeRaw`
-      CREATE INDEX IF NOT EXISTS idx_alternative_title_trgm ON "AlternativeTitle" USING gin (title gin_trgm_ops);
-    `;
-
-    console.log('✅ Full-text search indexes created successfully');
+    await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS pg_trgm`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_movie_title_trgm ON "Movie" USING gin (title gin_trgm_ops)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_movie_orig_title_trgm ON "Movie" USING gin ("originalTitle" gin_trgm_ops)`;
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS idx_person_name_trgm ON "Person" USING gin (name gin_trgm_ops)`;
+    pgTrgmAvailable = true;
+    console.log('✅ pg_trgm extension and GIN indexes ready');
     return true;
   } catch (error) {
-    console.error('Error initializing full-text search:', error);
+    pgTrgmAvailable = false;
+    console.log('ℹ️  pg_trgm unavailable — search will use ILIKE fallback');
     return false;
   }
 }

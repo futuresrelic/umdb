@@ -85,19 +85,13 @@ export default function BoxSetsListPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
-            <select
+            <input
+              type="text"
               value={format}
               onChange={(e) => setFormat(e.target.value)}
+              placeholder="e.g. Blu-ray, DVD..."
               className="w-full border border-gray-300 rounded-lg px-3 py-2"
-            >
-              <option value="">All Formats</option>
-              <option value="DVD">DVD</option>
-              <option value="BLU_RAY">Blu-ray</option>
-              <option value="BLU_RAY_4K">4K Blu-ray</option>
-              <option value="VHS">VHS</option>
-              <option value="LASERDISC">LaserDisc</option>
-              <option value="OTHER">Other</option>
-            </select>
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>

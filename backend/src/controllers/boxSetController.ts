@@ -134,9 +134,9 @@ export async function getAllBoxSets(req: Request, res: Response): Promise<void> 
       ];
     }
 
-    // Filter by format
+    // Filter by format (partial, case-insensitive — CineShelf stores free-text like "Blu-ray Box Set")
     if (format) {
-      where.format = format;
+      where.format = { contains: format as string, mode: 'insensitive' };
     }
 
     const [boxSets, total] = await Promise.all([

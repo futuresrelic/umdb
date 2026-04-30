@@ -8,11 +8,13 @@ import {
   addExternalMatch
 } from '../controllers/movieController';
 import { optionalAuth, requireAuth } from '../middleware/auth';
-import { validateBody, validateQuery, movieCreateSchema, movieUpdateSchema, paginationSchema, filterSchema } from '../validation/schemas';
+import { validateBody, movieCreateSchema, movieUpdateSchema } from '../validation/schemas';
 
 const router = Router();
 
-router.get('/', optionalAuth, validateQuery(paginationSchema.merge(filterSchema)), getAllMovies);
+// No query validation on GET / — the controller handles all params safely with coercion,
+// and Zod's parseAsync strips unknown fields which would break search, filters, and pagination.
+router.get('/', optionalAuth, getAllMovies);
 router.get('/:id', optionalAuth, getMovieById);
 router.post('/', requireAuth, validateBody(movieCreateSchema), createMovie);
 router.put('/:id', requireAuth, validateBody(movieUpdateSchema), updateMovie);

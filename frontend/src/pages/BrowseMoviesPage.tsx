@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { movieApi } from '../services/api';
 import api from '../services/api';
 import type { Movie } from '../types';
@@ -11,6 +11,7 @@ interface Genre {
 }
 
 function BrowseMoviesPage() {
+  const [searchParams] = useSearchParams();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [genres, setGenres] = useState<Genre[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,8 +19,8 @@ function BrowseMoviesPage() {
   const [page, setPage] = useState(1);
   const limit = 24;
 
-  // Filter states
-  const [search, setSearch] = useState('');
+  // Filter states — pre-fill search from URL ?q= param (e.g. from GlobalSearch "see all")
+  const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [sourceFilter, setSourceFilter] = useState('');
   const [genreFilter, setGenreFilter] = useState('');
   const [directorFilter, setDirectorFilter] = useState('');
