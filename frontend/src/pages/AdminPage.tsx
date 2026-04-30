@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { adminApi } from '../services/api';
 import IconEditor from '../components/IconEditor';
 
-type AdminTab = 'queue' | 'icons' | 'boxsets';
+type AdminTab = 'queue' | 'users' | 'activity' | 'boxsets' | 'icons';
 
 interface PendingMovie {
   id: string;
@@ -44,6 +44,32 @@ interface AdminStats {
   totalUsers: number;
 }
 
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  photo?: string;
+  role: 'USER' | 'ADMIN';
+  createdAt: string;
+  _count: {
+    submittedMovies: number;
+    submittedPhysicalCopies: number;
+  };
+}
+
+interface Activity {
+  type: string;
+  timestamp: string;
+  entityId: string;
+  title: string;
+  subtitle?: string;
+  status?: string;
+  user?: string;
+  userEmail?: string;
+  role?: string;
+  reason?: string;
+}
+
 interface BoxSet {
   id: string;
   name: string;
@@ -74,6 +100,9 @@ export default function AdminPage() {
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
   const [clearCineShelfConfirm, setClearCineShelfConfirm] = useState(false);
   const [nuclearResetConfirm, setNuclearResetConfirm] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityTotal, setActivityTotal] = useState(0);
 
   const loadData = async () => {
     try {
@@ -98,9 +127,32 @@ export default function AdminPage() {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      const data = await adminApi.getUsers();
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to load users:', err);
+    }
+  };
+
+  const loadActivity = async () => {
+    try {
+      const data = await adminApi.getActivity(100, 0);
+      setActivities(data.activities || []);
+      setActivityTotal(data.total || 0);
+    } catch (err) {
+      console.error('Failed to load activity:', err);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'boxsets') {
       loadBoxSets();
+    } else if (activeTab === 'users') {
+      loadUsers();
+    } else if (activeTab === 'activity') {
+      loadActivity();
     }
   }, [activeTab]);
 
@@ -186,6 +238,8 @@ export default function AdminPage() {
       <div className="flex border-b border-gray-200 mb-8 gap-1">
         {([
           { id: 'queue' as AdminTab, label: '📋 Verification Queue' },
+          { id: 'users' as AdminTab, label: '👥 Users' },
+          { id: 'activity' as AdminTab, label: '📊 Activity History' },
           { id: 'boxsets' as AdminTab, label: '📦 Box Sets' },
           { id: 'icons' as AdminTab, label: '🎨 App Icons' },
         ]).map(tab => (
@@ -200,6 +254,190 @@ export default function AdminPage() {
           >{tab.label}</button>
         ))}
       </div>
+
+      {/* ── Users tab ── */}
+      {activeTab === 'users' && (
+        <div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="text-2xl font-bold text-blue-700">{users.length}</div>
+            <div className="text-xs text-blue-600 mt-1">Total Users</div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submissions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {users.map(u => (
+                  <tr key={u.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        {u.photo ? (
+                          <img src={u.photo} alt={u.name} className="w-10 h-10 rounded-full mr-3" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-3 text-gray-500 text-sm font-medium">
+                            {u.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{u.name}</div>
+                          <div className="text-xs text-gray-400 font-mono">{u.id.slice(0, 8)}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{u.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-medium rounded ${
+                        u.role === 'ADMIN'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex gap-3">
+                        <span>{u._count.submittedMovies} movies</span>
+                        <span>{u._count.submittedPhysicalCopies} copies</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(u.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      {u.role === 'USER' ? (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Promote ${u.name} to ADMIN?`)) return;
+                            setActionLoading(u.id);
+                            await adminApi.setUserRole(u.id, 'ADMIN');
+                            await loadUsers();
+                            setActionLoading(null);
+                          }}
+                          disabled={actionLoading === u.id}
+                          className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 text-xs"
+                        >
+                          Promote to Admin
+                        </button>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Demote ${u.name} to USER?`)) return;
+                            setActionLoading(u.id);
+                            await adminApi.setUserRole(u.id, 'USER');
+                            await loadUsers();
+                            setActionLoading(null);
+                          }}
+                          disabled={actionLoading === u.id}
+                          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 text-xs"
+                        >
+                          Demote to User
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity History tab ── */}
+      {activeTab === 'activity' && (
+        <div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="text-2xl font-bold text-blue-700">{activityTotal}</div>
+            <div className="text-xs text-blue-600 mt-1">Recent Activities</div>
+          </div>
+
+          <div className="space-y-3">
+            {activities.map((activity, idx) => {
+              const getActivityIcon = (type: string) => {
+                if (type === 'movie_created') return '🎬';
+                if (type === 'physical_copy_created') return '💿';
+                if (type === 'box_set_created') return '📦';
+                if (type === 'user_registered') return '👤';
+                if (type === 'movie_verified') return '✅';
+                if (type === 'movie_rejected') return '❌';
+                if (type === 'physical_copy_verified') return '✅';
+                if (type === 'physical_copy_rejected') return '❌';
+                return '📝';
+              };
+
+              const getActivityColor = (type: string) => {
+                if (type.includes('verified')) return 'bg-green-50 border-green-200';
+                if (type.includes('rejected')) return 'bg-red-50 border-red-200';
+                if (type.includes('created') || type.includes('registered')) return 'bg-blue-50 border-blue-200';
+                return 'bg-gray-50 border-gray-200';
+              };
+
+              return (
+                <div key={idx} className={`${getActivityColor(activity.type)} border rounded-lg p-4`}>
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl flex-shrink-0">{getActivityIcon(activity.type)}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {activity.title}
+                          </div>
+                          {activity.subtitle && (
+                            <div className="text-xs text-gray-500 mt-0.5">{activity.subtitle}</div>
+                          )}
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-xs text-gray-500">
+                              {new Date(activity.timestamp).toLocaleString()}
+                            </span>
+                            {activity.user && (
+                              <span className="text-xs text-gray-600">
+                                by <span className="font-medium">{activity.user}</span>
+                              </span>
+                            )}
+                            {activity.status && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                activity.status === 'VERIFIED'
+                                  ? 'bg-green-100 text-green-800'
+                                  : activity.status === 'PENDING'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {activity.status}
+                              </span>
+                            )}
+                            {activity.role && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                activity.role === 'ADMIN'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {activity.role}
+                              </span>
+                            )}
+                          </div>
+                          {activity.reason && (
+                            <div className="text-xs text-gray-500 mt-1 italic">
+                              Reason: {activity.reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Box Sets tab ── */}
       {activeTab === 'boxsets' && (

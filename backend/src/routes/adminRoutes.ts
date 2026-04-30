@@ -18,6 +18,7 @@ import {
   deleteAllBoxSets,
   clearCineShelfData,
   clearAllData,
+  getActivityHistory,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -27,6 +28,7 @@ router.use(requireAdmin);
 router.get('/pending', getPendingEntries);
 router.get('/stats', getAdminStats);
 router.get('/movies', getAllMoviesAdmin);
+router.get('/activity', getActivityHistory);
 router.post('/movies/:id/verify', verifyMovie);
 router.post('/movies/:id/reject', rejectMovie);
 router.post('/movies/:id/merge/:targetId', mergeMovies);

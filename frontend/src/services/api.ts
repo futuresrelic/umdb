@@ -191,6 +191,16 @@ export const adminApi = {
     return response.data;
   },
 
+  setUserRole: async (id: string, role: 'USER' | 'ADMIN') => {
+    const response = await api.put(`/admin/users/${id}/role`, { role });
+    return response.data;
+  },
+
+  getActivity: async (limit = 100, offset = 0) => {
+    const response = await api.get('/admin/activity', { params: { limit, offset } });
+    return response.data;
+  },
+
   // Box Set Admin APIs
   getBoxSets: async () => {
     const response = await api.get('/admin/box-sets');

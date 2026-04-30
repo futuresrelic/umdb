@@ -679,3 +679,198 @@ export async function clearAllData(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'Failed to clear all data' });
   }
 }
+
+// GET /api/admin/activity - comprehensive activity log across all entities
+export async function getActivityHistory(req: Request, res: Response): Promise<void> {
+  try {
+    const { limit = 100, offset = 0 } = req.query;
+    const take = Math.min(parseInt(String(limit), 10), 500);
+    const skip = parseInt(String(offset), 10);
+
+    // Fetch recent activity across all major entities
+    const [
+      recentMovies,
+      recentCopies,
+      recentBoxSets,
+      recentUsers,
+      recentVerifications,
+      recentRejections,
+    ] = await Promise.all([
+      // Recent movie submissions
+      prisma.movie.findMany({
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          year: true,
+          status: true,
+          createdAt: true,
+          verifiedAt: true,
+          rejectedAt: true,
+          submittedBy: { select: { name: true, email: true } },
+        },
+      }),
+      // Recent physical copy submissions
+      prisma.physicalCopy.findMany({
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          format: true,
+          editionName: true,
+          status: true,
+          createdAt: true,
+          verifiedAt: true,
+          rejectedAt: true,
+          submittedBy: { select: { name: true, email: true } },
+          movie: { select: { title: true, year: true } },
+        },
+      }),
+      // Recent box sets
+      prisma.boxSet.findMany({
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          format: true,
+          status: true,
+          createdAt: true,
+          verifiedAt: true,
+          submittedBy: { select: { name: true, email: true } },
+        },
+      }),
+      // Recent user signups
+      prisma.user.findMany({
+        take: 10,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          createdAt: true,
+          role: true,
+        },
+      }),
+      // Recent verifications
+      prisma.movie.findMany({
+        where: { verifiedAt: { not: null } },
+        take: 20,
+        orderBy: { verifiedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          year: true,
+          verifiedAt: true,
+          submittedBy: { select: { name: true, email: true } },
+        },
+      }),
+      // Recent rejections
+      prisma.movie.findMany({
+        where: { rejectedAt: { not: null } },
+        take: 20,
+        orderBy: { rejectedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          year: true,
+          rejectedAt: true,
+          rejectionReason: true,
+          submittedBy: { select: { name: true, email: true } },
+        },
+      }),
+    ]);
+
+    // Combine and format into unified activity feed
+    const activities: any[] = [];
+
+    recentMovies.forEach(m => {
+      activities.push({
+        type: 'movie_created',
+        timestamp: m.createdAt,
+        entityId: m.id,
+        title: `${m.title} (${m.year || 'Unknown'})`,
+        status: m.status,
+        user: m.submittedBy?.name || 'Unknown',
+        userEmail: m.submittedBy?.email,
+      });
+    });
+
+    recentCopies.forEach(c => {
+      activities.push({
+        type: 'copy_created',
+        timestamp: c.createdAt,
+        entityId: c.id,
+        title: `${c.format} - ${c.movie.title} (${c.movie.year || 'Unknown'})`,
+        subtitle: c.editionName || '',
+        status: c.status,
+        user: c.submittedBy?.name || 'Unknown',
+        userEmail: c.submittedBy?.email,
+      });
+    });
+
+    recentBoxSets.forEach(b => {
+      activities.push({
+        type: 'boxset_created',
+        timestamp: b.createdAt,
+        entityId: b.id,
+        title: b.name,
+        subtitle: b.format || '',
+        status: b.status,
+        user: b.submittedBy?.name || 'CineShelf',
+        userEmail: b.submittedBy?.email,
+      });
+    });
+
+    recentUsers.forEach(u => {
+      activities.push({
+        type: 'user_joined',
+        timestamp: u.createdAt,
+        entityId: u.id,
+        title: u.name,
+        subtitle: u.email,
+        role: u.role,
+      });
+    });
+
+    recentVerifications.forEach(m => {
+      if (!m.verifiedAt) return;
+      activities.push({
+        type: 'movie_verified',
+        timestamp: m.verifiedAt,
+        entityId: m.id,
+        title: `${m.title} (${m.year || 'Unknown'})`,
+        user: m.submittedBy?.name || 'Unknown',
+      });
+    });
+
+    recentRejections.forEach(m => {
+      if (!m.rejectedAt) return;
+      activities.push({
+        type: 'movie_rejected',
+        timestamp: m.rejectedAt,
+        entityId: m.id,
+        title: `${m.title} (${m.year || 'Unknown'})`,
+        reason: m.rejectionReason,
+        user: m.submittedBy?.name || 'Unknown',
+      });
+    });
+
+    // Sort by timestamp descending
+    activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Apply pagination
+    const paginatedActivities = activities.slice(skip, skip + take);
+
+    res.json({
+      activities: paginatedActivities,
+      total: activities.length,
+      limit: take,
+      offset: skip,
+    });
+  } catch (err) {
+    console.error('Failed to fetch activity history:', err);
+    res.status(500).json({ error: 'Failed to fetch activity history' });
+  }
+}
