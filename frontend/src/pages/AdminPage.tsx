@@ -130,7 +130,7 @@ export default function AdminPage() {
   const loadUsers = async () => {
     try {
       const data = await adminApi.getUsers();
-      setUsers(data);
+      setUsers(data.users || []);
     } catch (err) {
       console.error('Failed to load users:', err);
     }
