@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { adminApi } from '../services/api';
+import { adminApi, partnerAppApi } from '../services/api';
 import IconEditor from '../components/IconEditor';
 
-type AdminTab = 'queue' | 'users' | 'activity' | 'boxsets' | 'icons';
+type AdminTab = 'queue' | 'users' | 'activity' | 'apps' | 'boxsets' | 'icons';
 
 interface PendingMovie {
   id: string;
@@ -81,6 +81,31 @@ interface BoxSet {
   movies: string[];
 }
 
+interface PartnerApp {
+  id: string;
+  name: string;
+  tagline?: string;
+  description?: string;
+  iconUrl?: string;
+  installUrl?: string;
+  openUrl?: string;
+  platforms: string[];
+  price: string;
+  features: string[];
+  promoVideoUrl?: string;
+  integrationNotes?: string;
+  isUmdbIntegrated: boolean;
+  isFeatured: boolean;
+  status: 'ACTIVE' | 'COMING_SOON' | 'DEPRECATED';
+  sortOrder: number;
+  screenshots: {
+    id: string;
+    url: string;
+    caption?: string;
+    sortOrder: number;
+  }[];
+}
+
 export default function AdminPage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -103,6 +128,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
+  const [partnerApps, setPartnerApps] = useState<PartnerApp[]>([]);
 
   const loadData = async () => {
     try {
@@ -146,6 +172,15 @@ export default function AdminPage() {
     }
   };
 
+  const loadPartnerApps = async () => {
+    try {
+      const data = await partnerAppApi.getAll();
+      setPartnerApps(data.apps || []);
+    } catch (err) {
+      console.error('Failed to load partner apps:', err);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'boxsets') {
       loadBoxSets();
@@ -153,6 +188,8 @@ export default function AdminPage() {
       loadUsers();
     } else if (activeTab === 'activity') {
       loadActivity();
+    } else if (activeTab === 'apps') {
+      loadPartnerApps();
     }
   }, [activeTab]);
 
@@ -240,6 +277,7 @@ export default function AdminPage() {
           { id: 'queue' as AdminTab, label: '📋 Verification Queue' },
           { id: 'users' as AdminTab, label: '👥 Users' },
           { id: 'activity' as AdminTab, label: '📊 Activity History' },
+          { id: 'apps' as AdminTab, label: '🚀 Partner Apps' },
           { id: 'boxsets' as AdminTab, label: '📦 Box Sets' },
           { id: 'icons' as AdminTab, label: '🎨 App Icons' },
         ]).map(tab => (
@@ -436,6 +474,175 @@ export default function AdminPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ── Partner Apps tab ── */}
+      {activeTab === 'apps' && (
+        <div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="text-2xl font-bold text-blue-700">{partnerApps.length}</div>
+            <div className="text-xs text-blue-600 mt-1">Partner Apps</div>
+          </div>
+
+          <div className="mb-6">
+            <button
+              onClick={() => {
+                const id = prompt('Enter app ID (e.g., "cineshelf"):');
+                const name = prompt('Enter app name:');
+                if (!id || !name) return;
+
+                setActionLoading('create-app');
+                partnerAppApi.create({
+                  id,
+                  name,
+                  tagline: '',
+                  platforms: [],
+                  features: [],
+                  price: 'Free',
+                  isUmdbIntegrated: false,
+                  isFeatured: false,
+                  status: 'ACTIVE',
+                  sortOrder: 0,
+                }).then(() => {
+                  loadPartnerApps();
+                  setActionLoading(null);
+                }).catch((err) => {
+                  alert(`Error: ${err.response?.data?.error || err.message}`);
+                  setActionLoading(null);
+                });
+              }}
+              disabled={actionLoading === 'create-app'}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm disabled:opacity-50"
+            >
+              ➕ Add Partner App
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {partnerApps.map((app) => (
+              <div key={app.id} className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-start gap-4">
+                  {app.iconUrl && (
+                    <img src={app.iconUrl} alt={app.name} className="w-16 h-16 rounded-lg flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{app.name}</h3>
+                        {app.tagline && <p className="text-sm text-gray-600 mt-1">{app.tagline}</p>}
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-700">
+                            ID: {app.id}
+                          </span>
+                          <span className={`text-xs px-2 py-1 rounded font-medium ${
+                            app.status === 'ACTIVE'
+                              ? 'bg-green-100 text-green-800'
+                              : app.status === 'COMING_SOON'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {app.status}
+                          </span>
+                          {app.isFeatured && (
+                            <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800 font-medium">
+                              ⭐ Featured
+                            </span>
+                          )}
+                          {app.isUmdbIntegrated && (
+                            <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 font-medium">
+                              🔗 UMDB Integrated
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-500">
+                            Sort: {app.sortOrder}
+                          </span>
+                        </div>
+                        {app.platforms.length > 0 && (
+                          <div className="mt-2 flex gap-1 flex-wrap">
+                            {app.platforms.map((platform, idx) => (
+                              <span key={idx} className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">
+                                {platform}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {app.description && (
+                          <p className="text-sm text-gray-700 mt-3 line-clamp-2">{app.description}</p>
+                        )}
+                        {app.features.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs font-medium text-gray-600 mb-1">Features ({app.features.length}):</p>
+                            <ul className="text-xs text-gray-600 space-y-0.5">
+                              {app.features.slice(0, 3).map((feature, idx) => (
+                                <li key={idx}>• {feature}</li>
+                              ))}
+                              {app.features.length > 3 && (
+                                <li className="text-gray-400 italic">... and {app.features.length - 3} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 flex-shrink-0">
+                        {app.installUrl && (
+                          <a
+                            href={app.installUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 text-center"
+                          >
+                            🔗 Install
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            const featured = !app.isFeatured;
+                            setActionLoading(app.id);
+                            partnerAppApi.update(app.id, { isFeatured: featured }).then(() => {
+                              loadPartnerApps();
+                              setActionLoading(null);
+                            }).catch((err) => {
+                              alert(`Error: ${err.response?.data?.error || err.message}`);
+                              setActionLoading(null);
+                            });
+                          }}
+                          disabled={actionLoading === app.id}
+                          className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          {app.isFeatured ? '⭐ Unfeature' : '⭐ Feature'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!confirm(`Delete "${app.name}"?`)) return;
+                            setActionLoading(app.id);
+                            partnerAppApi.delete(app.id).then(() => {
+                              loadPartnerApps();
+                              setActionLoading(null);
+                            }).catch((err) => {
+                              alert(`Error: ${err.response?.data?.error || err.message}`);
+                              setActionLoading(null);
+                            });
+                          }}
+                          disabled={actionLoading === app.id}
+                          className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50"
+                        >
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {partnerApps.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-lg shadow">
+              <p className="text-gray-600 mb-4">No partner apps yet</p>
+              <p className="text-sm text-gray-500">Click "Add Partner App" to create the first one</p>
+            </div>
+          )}
         </div>
       )}
 

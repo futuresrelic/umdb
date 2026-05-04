@@ -874,3 +874,57 @@ export async function getActivityHistory(req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Failed to fetch activity history' });
   }
 }
+
+// POST /api/admin/seed-cineshelf - Seed CineShelf partner app
+export async function seedCineShelf(req: Request, res: Response): Promise<void> {
+  try {
+    // Check if CineShelf already exists
+    const existing = await prisma.partnerApp.findUnique({
+      where: { id: 'cineshelf' },
+    });
+
+    if (existing) {
+      res.json({ message: 'CineShelf already exists', app: existing });
+      return;
+    }
+
+    const cineShelfData = {
+      id: 'cineshelf',
+      name: 'CineShelf',
+      tagline: 'Your physical media collection, beautifully organized.',
+      description: 'CineShelf is the ultimate tool for physical media collectors. Catalog every disc in your collection with full metadata from TMDB and UMDB — format, edition, publisher, barcode, disc count, region, packaging extras and more. View your library as a real bookshelf with spine art, a poster grid, or a detailed spreadsheet. Scan barcodes to auto-fill edition details, import top-10 lists from any website, build a wishlist with target formats, and quiz yourself on your own collection. Works offline, syncs to UMDB, and is free forever.',
+      iconUrl: 'https://cineshelf.ca/app-icon.png',
+      installUrl: 'https://cineshelf.ca/about',
+      openUrl: 'https://cineshelf.ca',
+      platforms: ['iOS (PWA)', 'Android (PWA)', 'Desktop Web'],
+      price: 'Free',
+      features: [
+        'Barcode scanning with UMDB edition lookup',
+        'Shelf view with spine art',
+        'Poster grid, compact, list, and gallery views',
+        'Wishlist with target format tracking',
+        'Web list scraper (import any top-10 article)',
+        'Physical copy details (edition, publisher, steelbook, slipcover, etc.)',
+        'Box set management',
+        'Family and group collection sharing',
+        'Collection trivia game',
+        'UMDB two-way sync for physical copies',
+        '10 visual themes',
+        'Offline-first (PWA)',
+      ],
+      isUmdbIntegrated: true,
+      isFeatured: true,
+      status: 'ACTIVE' as any,
+      sortOrder: 0,
+    };
+
+    const app = await prisma.partnerApp.create({
+      data: cineShelfData,
+    });
+
+    res.json({ message: 'CineShelf seeded successfully', app });
+  } catch (err) {
+    console.error('Failed to seed CineShelf:', err);
+    res.status(500).json({ error: 'Failed to seed CineShelf' });
+  }
+}

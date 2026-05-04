@@ -19,6 +19,7 @@ import {
   clearCineShelfData,
   clearAllData,
   getActivityHistory,
+  seedCineShelf,
 } from '../controllers/adminController';
 
 const router = Router();
@@ -49,5 +50,8 @@ router.delete('/cineshelf-data', clearCineShelfData);
 
 // Nuclear Reset
 router.delete('/all-data', clearAllData);
+
+// Partner Apps
+router.post('/seed-cineshelf', seedCineShelf);
 
 export default router;

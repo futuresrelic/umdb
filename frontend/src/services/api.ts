@@ -289,4 +289,40 @@ export const boxSetApi = {
   },
 };
 
+// Partner Apps
+export const partnerAppApi = {
+  getAll: async (params?: { status?: string; featured?: boolean }) => {
+    const response = await api.get('/partner-apps', { params });
+    return response.data;
+  },
+
+  getById: async (id: string) => {
+    const response = await api.get(`/partner-apps/${id}`);
+    return response.data;
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/partner-apps', data);
+    return response.data;
+  },
+
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/partner-apps/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: string) => {
+    await api.delete(`/partner-apps/${id}`);
+  },
+
+  addScreenshot: async (id: string, data: { url: string; caption?: string; sortOrder?: number }) => {
+    const response = await api.post(`/partner-apps/${id}/screenshots`, data);
+    return response.data;
+  },
+
+  deleteScreenshot: async (id: string, screenshotId: string) => {
+    await api.delete(`/partner-apps/${id}/screenshots/${screenshotId}`);
+  },
+};
+
 export default api;

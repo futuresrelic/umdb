@@ -23,6 +23,7 @@ import iconRoutes from './routes/iconRoutes';
 import diagnosticsRoutes from './routes/diagnostics';
 import boxSetRoutes from './routes/boxSetRoutes';
 import searchRoutes from './routes/searchRoutes';
+import partnerAppRoutes from './routes/partnerAppRoutes';
 import { initializeFullTextSearch } from './services/searchService';
 
 // Force redeploy with latest schema and routes
@@ -145,6 +146,7 @@ app.use('/api/icons', iconRoutes);
 app.use('/api/diagnostics', diagnosticsRoutes);
 app.use('/api/box-sets', boxSetRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/partner-apps', partnerAppRoutes);
 
 // Error handling
 app.use(errorHandler);

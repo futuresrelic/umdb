@@ -516,3 +516,54 @@ model BoxSetComponent {
   @@index([boxSetId])
   @@index([type])
 }
+
+// Partner Apps (CineShelf, etc.)
+model PartnerApp {
+  id          String   @id // e.g., "cineshelf"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  tagline     String?
+  description String?  @db.Text
+  iconUrl     String?
+  installUrl  String?
+  openUrl     String?
+  platforms   String[] @default([]) // ["iOS PWA", "Android PWA", "Desktop Web"]
+  price       String   @default("Free")
+  features    String[] @default([]) // Array of feature strings
+  promoVideoUrl String?
+  integrationNotes String? @db.Text
+  isUmdbIntegrated Boolean @default(false)
+  isFeatured  Boolean  @default(false)
+  status      AppStatus @default(ACTIVE)
+  sortOrder   Int      @default(0)
+
+  screenshots PartnerAppScreenshot[]
+
+  @@index([status])
+  @@index([isFeatured])
+  @@index([sortOrder])
+}
+
+// Screenshots for partner apps
+model PartnerAppScreenshot {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  appId       String
+  app         PartnerApp @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  url         String
+  caption     String?
+  sortOrder   Int      @default(0)
+
+  @@index([appId])
+  @@index([sortOrder])
+}
+
+enum AppStatus {
+  ACTIVE
+  COMING_SOON
+  DEPRECATED
+}
