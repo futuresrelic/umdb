@@ -90,6 +90,21 @@ function MovieDetailsPage() {
   const status = (movie as any).status as string | undefined;
   const canEdit = user && (isAdmin || (movie as any).submittedById === user.id);
 
+  // Generate CineShelf deep link
+  const getCineShelfLink = () => {
+    const tmdbMatch = movie.externalMatches?.find(m => m.source === 'TMDB');
+    const params = new URLSearchParams();
+    params.append('action', 'add');
+    if (tmdbMatch?.externalId) {
+      params.append('tmdb_id', tmdbMatch.externalId);
+    }
+    params.append('title', movie.title);
+    if (movie.year) {
+      params.append('year', movie.year.toString());
+    }
+    return `https://cineshelf.ca/?${params.toString()}`;
+  };
+
   const directors = movie.moviePeople?.filter((mp) => mp.role === 'DIRECTOR') || [];
   const actors = movie.moviePeople?.filter((mp) => mp.role === 'ACTOR') || [];
   const writers = movie.moviePeople?.filter((mp) => mp.role === 'WRITER') || [];
@@ -169,6 +184,18 @@ function MovieDetailsPage() {
                 )}
               </div>
               <div className="flex gap-2 flex-wrap justify-end">
+                <a
+                  href={getCineShelfLink()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition text-sm flex items-center gap-2"
+                  title="Add to your CineShelf collection"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z" />
+                  </svg>
+                  Track in CineShelf
+                </a>
                 {user && (
                   <button
                     onClick={() => setShowPhotos(!showPhotos)}

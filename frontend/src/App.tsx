@@ -22,6 +22,7 @@ import DocsPage from './pages/DocsPage';
 import BoxSetsListPage from './pages/BoxSetsListPage';
 import BoxSetDetailPage from './pages/BoxSetDetailPage';
 import BoxSetCreatePage from './pages/BoxSetCreatePage';
+import PartnerAppsPage from './pages/PartnerAppsPage';
 
 function NavBar() {
   const { user, loading, login, logout, isAdmin } = useAuth();
@@ -43,6 +44,9 @@ function NavBar() {
               </Link>
               <Link to="/box-sets" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
                 📦 Box Sets
+              </Link>
+              <Link to="/partner-apps" className="px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 transition">
+                🚀 Apps
               </Link>
               {user && (
                 <>
@@ -165,6 +169,7 @@ function AppContent() {
               <Route path="/box-sets" element={<BoxSetsListPage />} />
               <Route path="/box-sets/new" element={<BoxSetCreatePage />} />
               <Route path="/box-sets/:id" element={<BoxSetDetailPage />} />
+              <Route path="/partner-apps" element={<PartnerAppsPage />} />
             </Routes>
           </main>
 
