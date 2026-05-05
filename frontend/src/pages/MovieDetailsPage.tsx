@@ -4,9 +4,9 @@ import { movieApi, adminApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Movie } from '../types';
 import SourceMatchingModal from '../components/SourceMatchingModal';
-import PhysicalCopyManager from '../components/PhysicalCopyManager';
 import SourceDataTabs from '../components/SourceDataTabs';
 import CoverCapture from '../components/CoverCapture';
+import PhysicalEditionsSection from '../components/PhysicalEditionsSection';
 
 function MovieDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -232,13 +232,34 @@ function MovieDetailsPage() {
             <div className="flex flex-wrap gap-4 mb-6">
               {movie.year && <span className="bg-gray-100 px-3 py-1 rounded">{movie.year}</span>}
               {movie.runtime && <span className="bg-gray-100 px-3 py-1 rounded">{movie.runtime} min</span>}
-              <span className={`px-3 py-1 rounded ${
-                movie.sourceType === 'MANUAL' ? 'bg-blue-100 text-blue-800'
-                : movie.sourceType === 'TMDB' ? 'bg-green-100 text-green-800'
-                : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                {movie.sourceType}
-              </span>
+
+              {/* Source attribution - clearer labels */}
+              {movie.sourceType === 'MANUAL' && !movie.externalMatches?.length && (
+                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm">
+                  📝 Manually Added
+                </span>
+              )}
+              {movie.sourceType === 'MANUAL' && movie.externalMatches && movie.externalMatches.length > 0 && (
+                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded text-sm">
+                  📝 Manual + Linked to {movie.externalMatches.map(m => m.source).join(', ')}
+                </span>
+              )}
+              {movie.sourceType === 'TMDB' && (
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded text-sm">
+                  🎬 Imported from TMDB
+                </span>
+              )}
+              {movie.sourceType === 'OMDB' && (
+                <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded text-sm">
+                  🎬 Imported from OMDB
+                </span>
+              )}
+              {movie.sourceType === 'HYBRID' && (
+                <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded text-sm">
+                  🔗 Linked to {movie.externalMatches?.map(m => m.source).join(', ') || 'External Sources'}
+                </span>
+              )}
+
               {movie.rating && (
                 <span className="bg-yellow-100 px-3 py-1 rounded">⭐ {movie.rating.toFixed(1)}</span>
               )}
@@ -371,10 +392,18 @@ function MovieDetailsPage() {
                 backdropUrl: movie.backdropUrl,
               }}
             />
-
-            <PhysicalCopyManager movieId={movie.id} canEdit={!!canEdit} />
           </div>
         </div>
+      </div>
+
+      {/* Physical Editions Section */}
+      <div className="mt-8">
+        <PhysicalEditionsSection
+          movieId={movie.id}
+          movieTitle={movie.title}
+          canEdit={!!canEdit}
+          isAdmin={!!isAdmin}
+        />
       </div>
 
       {/* Cover photos panel */}
